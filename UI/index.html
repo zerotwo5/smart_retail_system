@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Retail System | Premium POS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Login Screen -->
+    <div class="login-screen" id="loginScreen">
+      <div class="login-wrapper">
+        <div class="login-card">
+          <div class="login-logo">
+            <i class="fas fa-crown"></i>
+            <h2>Smart Retail</h2>
+            <p>Premium POS System</p>
+          </div>
+          <div class="pin-display">
+            <div class="pin-dot" id="pin1"></div>
+            <div class="pin-dot" id="pin2"></div>
+            <div class="pin-dot" id="pin3"></div>
+            <div class="pin-dot" id="pin4"></div>
+            <div class="pin-dot" id="pin5"></div>
+            <div class="pin-dot" id="pin6"></div>
+          </div>
+          <div class="keypad">
+            <button class="keypad-btn" onclick="addPinDigit('1')">1</button>
+            <button class="keypad-btn" onclick="addPinDigit('2')">2</button>
+            <button class="keypad-btn" onclick="addPinDigit('3')">3</button>
+            <button class="keypad-btn" onclick="addPinDigit('4')">4</button>
+            <button class="keypad-btn" onclick="addPinDigit('5')">5</button>
+            <button class="keypad-btn" onclick="addPinDigit('6')">6</button>
+            <button class="keypad-btn" onclick="addPinDigit('7')">7</button>
+            <button class="keypad-btn" onclick="addPinDigit('8')">8</button>
+            <button class="keypad-btn" onclick="addPinDigit('9')">9</button>
+            <button class="keypad-btn clear" onclick="clearPin()"><i class="fas fa-delete-left"></i></button>
+            <button class="keypad-btn" onclick="addPinDigit('0')">0</button>
+            <button class="keypad-btn enter" onclick="verifyPin()">Enter</button>
+          </div>
+          <p class="demo-hint">Demo PIN: 123456</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div class="dashboard" id="dashboard">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <i class="fas fa-gem"></i>
+          <span>SmartRetail</span>
+        </div>
+        <div class="sidebar-nav">
+          <div class="nav-item active" onclick="switchTab('dashboard')">
+            <i class="fas fa-shopping-bag"></i>
+            <span>Dashboard</span>
+          </div>
+          <div class="nav-item active" onclick="switchTab('sales')">
+            <i class="fas fa-shopping-bag"></i>
+            <span>Sales</span>
+          </div>
+          <div class="nav-item" onclick="switchTab('inventory')">
+            <i class="fas fa-cubes"></i>
+            <span>Inventory</span>
+          </div>
+          <div class="nav-item" onclick="switchTab('dues')">
+            <i class="fas fa-wallet"></i>
+            <span>Dues (Baki)</span>
+          </div>
+          <div class="nav-item" onclick="switchTab('statement')">
+            <i class="fas fa-chart-pie"></i>
+            <span>Statement</span>
+          </div>
+        </div>
+        <div class="sidebar-footer">
+          <div class="backup-indicator">
+            <i class="fas fa-cloud-check"></i>
+            <span>Drive Synced</span>
+          </div>
+          <button class="lock-screen-btn" onclick="lockScreen()">
+            <i class="fas fa-lock"></i>
+            <span>Lock System</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="main-content">
+        <!-- Header -->
+        <div class="top-header">
+          <div class="header-left">
+            <h1 id="pageTitle">Sales Dashboard</h1>
+            <div class="alert-chip danger">
+              <i class="fas fa-exclamation-circle"></i>
+              <span id="lowStockCount">3 Low Stock</span>
+            </div>
+          </div>
+          <div class="header-right">
+            <div class="datetime">
+              <div class="date" id="currentDate"></div>
+              <div class="time" id="currentTime"></div>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()">
+              <i class="fas fa-sun"></i>
+            </button>
+            <div class="user-profile">
+              <img src="https://ui-avatars.com/api/?name=Shop+Owner&background=8b5cf6&color=fff" alt="User">
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Content Container -->
+        <div class="content-container">
+          <!-- Sales Tab -->
+          <div class="tab-pane active" id="salesTab">
+            <div class="sales-grid">
+              <!-- Product List Section -->
+              <div class="product-section">
+                <div class="section-header">
+                  <h3>Product Catalog</h3>
+                  <div class="search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Search or scan barcode..." id="productSearch"> <button class="barcode-scan" onclick="">Barcode Scan</button>
+                  </div>
+                </div>
+                <div class="product-table-container">
+                  <table class="product-table">
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>Price</th>
+                        <th>Stock</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="productTableBody">
+                      <!-- Products will be injected here -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Multiplier Panel -->
+              <div class="multiplier-panel">
+                <div class="panel-header">
+                  <i class="fas fa-calculator"></i>
+                  <h4>Quick Multipliers</h4>
+                </div>
+                <div class="multiplier-grid">
+                  <button class="multiplier-btn" onclick="applyMultiplier(1)">×1</button>
+                  <button class="multiplier-btn" onclick="applyMultiplier(2)">×2</button>
+                  <button class="multiplier-btn" onclick="applyMultiplier(3)">×3</button>
+                  <button class="multiplier-btn" onclick="applyMultiplier(5)">×5</button>
+                  <button class="multiplier-btn" onclick="applyMultiplier(10)">×10</button>
+                  <button class="multiplier-btn weight" onclick="applyMultiplier(0.1)">100g</button>
+                  <button class="multiplier-btn weight" onclick="applyMultiplier(0.25)">250g</button>
+                  <button class="multiplier-btn weight" onclick="applyMultiplier(0.5)">500g</button>
+                  <button class="multiplier-btn weight" onclick="applyMultiplier(1)">1kg</button>
+                </div>
+                <div class="selected-product-info" id="selectedProductInfo">
+                  <span class="info-label">Selected Product:</span>
+                  <span class="info-value" id="selectedProductName">None</span>
+                </div>
+              </div>
+
+              <!-- Cart Section -->
+              <div class="cart-section">
+                <div class="section-header">
+                  <h3>Shopping Cart</h3>
+                  <span class="invoice-badge">INV-2024-089</span>
+                </div>
+                <div class="cart-items" id="cartItems">
+                  <div class="empty-cart">
+                    <i class="fas fa-shopping-cart"></i>
+                    <p>No items in cart</p>
+                  </div>
+                </div>
+                <div class="cart-summary">
+                  <div class="summary-row">
+                    <span>Subtotal</span>
+                    <span id="cartSubtotal">৳0</span>
+                  </div>
+                  <div class="summary-row">
+                    <span>VAT (5%)</span>
+                    <span id="cartVat">৳0</span>
+                  </div>
+                  <div class="summary-row total">
+                    <span>Total</span>
+                    <span id="cartTotal">৳0</span>
+                  </div>
+                </div>
+                <div class="payment-methods">
+                  <button class="payment-option active" onclick="selectPayment('cash')">
+                    <i class="fas fa-money-bill-wave"></i> Cash
+                  </button>
+                  <button class="payment-option" onclick="selectPayment('bkash')">
+                    <i class="fas fa-mobile-screen"></i> bKash
+                  </button>
+                  <button class="payment-option" onclick="selectPayment('nagad')">
+                    <i class="fas fa-wallet"></i> Nagad
+                  </button>
+                  <button class="payment-option" onclick="selectPayment('due')">
+                    <i class="fas fa-calendar-clock"></i> Due
+                  </button>
+                </div>
+                <div>
+                  <input type="tel" placeholder="Customer Phone" class="customer-phone" id="customerPhone" style="display: ;">
+                </div>
+                <div class="due-settings" id="dueSettings" style="display: none;">
+                  <input type="tel" placeholder="Customer Phone" class="due-input">
+                  <select class="due-select">
+                    <option>3 Days</option>
+                    <option>7 Days</option>
+                    <option>15 Days</option>
+                    <option>30 Days</option>
+                    <option>60 Days</option>
+                  </select>
+                </div>
+                <button class="checkout-btn" onclick="processCheckout()">
+                  <i class="fas fa-check-circle"></i>
+                  Complete Sale & Print
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Inventory Tab -->
+          <div class="tab-pane" id="inventoryTab">
+            <div class="inventory-header">
+              <h2>Inventory Management</h2>
+              <button class="btn-primary" onclick="showAddProductModal()">
+                <i class="fas fa-plus-circle"></i> Add Product
+              </button>
+              <button class="btn-primary" onclick="showBarcodeScanModal()">
+                <i class="fas fa-barcode"></i> Barcode Scan
+              </button>
+            </div>
+            <div class="inventory-stats">
+              <div class="stat-card">
+                <i class="fas fa-boxes"></i>
+                <div class="stat-info">
+                  <span class="stat-label">Total Products</span>
+                  <span class="stat-value" id="totalProducts">24</span>
+                </div>
+              </div>
+              <div class="stat-card">
+                <i class="fas fa-warehouse"></i>
+                <div class="stat-info">
+                  <span class="stat-label">Total Stock Value</span>
+                  <span class="stat-value" id="totalStockValue">৳1,25,800</span>
+                </div>
+              </div>
+              <div class="stat-card warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div class="stat-info">
+                  <span class="stat-label">Low Stock Items</span>
+                  <span class="stat-value" id="lowStockItems">3</span>
+                </div>
+              </div>
+            </div>
+            <div class="inventory-table-wrapper">
+              <table class="inventory-table">
+                <thead>
+                  <tr>
+                    <th>Product Name</th>
+                    <th>Category</th>
+                    <th>Unit Price</th>
+                    <th>Pieces in Stock</th>
+                    <th>Total Value</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                    <th>Purchase Price</th>
+                  </tr>
+                </thead>
+                <tbody id="inventoryTableBody">
+                  <!-- Injected via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Dues Tab -->
+          <div class="tab-pane" id="duesTab">
+            <div class="dues-header">
+              <h2>Due Management (Baki Khata)</h2>
+            </div>
+            <div class="dues-stats-grid">
+              <div class="due-stat-card">
+                <i class="fas fa-coins"></i>
+                <div>
+                  <span class="due-stat-label">Total Due</span>
+                  <span class="due-stat-value">৳24,850</span>
+                </div>
+              </div>
+              <div class="due-stat-card overdue">
+                <i class="fas fa-clock"></i>
+                <div>
+                  <span class="due-stat-label">Overdue</span>
+                  <span class="due-stat-value">৳6,420</span>
+                </div>
+              </div>
+              <div class="due-stat-card active">
+                <i class="fas fa-users"></i>
+                <div>
+                  <span class="due-stat-label">Active Due Customers</span>
+                  <span class="due-stat-value">12</span>
+                </div>
+              </div>
+            </div>
+            <div class="dues-table-wrapper">
+              <table class="dues-table">
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Phone</th>
+                    <th>Due Amount</th>
+                    <th>Due Date</th>
+                    <th>Days Left</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Abdul Karim</td>
+                    <td>01712-345678</td>
+                    <td>৳3,200</td>
+                    <td>2024-01-20</td>
+                    <td>-5 days</td>
+                    <td><span class="status-badge overdue">Overdue</span></td>
+                    <td class="action-icons">
+                      <i class="fas fa-check-circle" title="Mark Paid"></i>
+                      <i class="fas fa-phone-alt" title="Call"></i>
+                      <i class="fas fa-comment-dots" title="SMS"></i>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Rahima Begum</td>
+                    <td>01823-987654</td>
+                    <td>৳1,850</td>
+                    <td>2024-01-28</td>
+                    <td>3 days</td>
+                    <td><span class="status-badge pending">Pending</span></td>
+                    <td class="action-icons">
+                      <i class="fas fa-check-circle"></i>
+                      <i class="fas fa-phone-alt"></i>
+                      <i class="fas fa-comment-dots"></i>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Shahidul Islam</td>
+                    <td>01911-234567</td>
+                    <td>৳7,500</td>
+                    <td>2024-01-15</td>
+                    <td>-10 days</td>
+                    <td><span class="status-badge critical">Critical</span></td>
+                    <td class="action-icons">
+                      <i class="fas fa-check-circle"></i>
+                      <i class="fas fa-phone-alt"></i>
+                      <i class="fas fa-comment-dots"></i>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Statement Tab -->
+          <div class="tab-pane" id="statementTab">
+            <div class="statement-header">
+              <h2>Financial Statement</h2>
+              <div class="statement-controls">
+                <select class="month-selector">
+                  <option>January 2024</option>
+                  <option>December 2023</option>
+                  <option>November 2023</option>
+                </select>
+                <button class="btn-secondary" onclick="downloadStatement()">
+                  <i class="fas fa-download"></i> Download PDF
+                </button>
+              </div>
+            </div>
+            <div class="statement-summary">
+              <div class="summary-card gradient-blue">
+                <i class="fas fa-chart-line"></i>
+                <div>
+                  <span>Total Sales</span>
+                  <h3>৳1,89,450</h3>
+                </div>
+              </div>
+              <div class="summary-card gradient-green">
+                <i class="fas fa-trend-up"></i>
+                <div>
+                  <span>Gross Profit</span>
+                  <h3>৳42,800</h3>
+                </div>
+              </div>
+              <div class="summary-card gradient-purple">
+                <i class="fas fa-wallet"></i>
+                <div>
+                  <span>Net Profit</span>
+                  <h3>৳35,620</h3>
+                </div>
+              </div>
+              <div class="summary-card gradient-orange">
+                <i class="fas fa-percent"></i>
+                <div>
+                  <span>Profit Margin</span>
+                  <h3>18.8%</h3>
+                </div>
+              </div>
+            </div>
+            <div class="chart-container">
+              <div class="chart-header">
+                <h3>Weekly Sales Trend</h3>
+              </div>
+              <div class="chart-bars">
+                <div class="bar-item">
+                  <div class="bar" style="height: 180px;"></div>
+                  <span>Week 1</span>
+                </div>
+                <div class="bar-item">
+                  <div class="bar" style="height: 220px;"></div>
+                  <span>Week 2</span>
+                </div>
+                <div class="bar-item">
+                  <div class="bar" style="height: 195px;"></div>
+                  <span>Week 3</span>
+                </div>
+                <div class="bar-item">
+                  <div class="bar" style="height: 250px;"></div>
+                  <span>Week 4</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Receipt Modal -->
+    <div class="modal" id="receiptModal">
+      <div class="modal-content receipt-modal">
+        <div class="modal-header">
+          <h3>Transaction Receipt</h3>
+          <i class="fas fa-times" onclick="closeReceiptModal()"></i>
+        </div>
+        <div class="receipt-body">
+          <div class="receipt-store">
+            <i class="fas fa-store"></i>
+            <h4>Smart Retail Store</h4>
+            <p>123 Bashundhara, Dhaka</p>
+            <p>Invoice: #INV-2024-089</p>
+          </div>
+          <div class="receipt-items" id="receiptItems">
+            <!-- Receipt items injected here -->
+          </div>
+          <div class="receipt-footer">
+            <div class="receipt-total" id="receiptTotal">Total: ৳0</div>
+            <p class="receipt-thanks">Thank you for shopping!</p>
+          </div>
+        </div>
+        <div class="receipt-actions">
+          <button class="action-btn print" onclick="printReceipt()">
+            <i class="fas fa-print"></i> Print
+          </button>
+          <button class="action-btn whatsapp" onclick="sendWhatsApp()">
+            <i class="fab fa-whatsapp"></i> WhatsApp
+          </button>
+          <button class="action-btn sms" onclick="sendSMS()">
+            <i class="fas fa-sms"></i> SMS
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- BKash Modal -->
+    <div class="modal" id="bkashModal">
+      <div class="modal-content qr-modal">
+        <div class="modal-header">
+          <h3>bKash Payment</h3>
+          <i class="fas fa-times" onclick="closeBkashModal()"></i>
+        </div>
+        <div class="qr-body">
+          <div class="qr-code">
+            <i class="fas fa-qrcode"></i>
+          </div>
+          <p class="qr-amount">Amount: <span id="bkashAmount">৳0</span></p>
+          <p class="qr-instruction">Scan QR code with bKash app</p>
+          <button class="btn-primary full-width" onclick="closeBkashModal()">
+            Payment Complete
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
