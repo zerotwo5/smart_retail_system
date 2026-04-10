@@ -1,69 +1,95 @@
-// Global State
+// ============================================================
+//   SMART RETAIL POS - script.js v2.0
+// ============================================================
+
+// ---- Global State ----
 let currentTheme = 'light';
 let pinCode = '';
 const CORRECT_PIN = '123456';
 let cart = [];
 let selectedPayment = 'cash';
 let selectedProduct = null;
-let currentMultiplier = 1;
+let invoiceCounter = 1;
+let allTransactions = []; // stores completed transactions
 
-// Products Data
+// ---- Products Data ----
 const products = [
-  { id: 1, name: 'Miniket Rice', category: 'Grocery', price: 75, unit: 'kg', stock: 125, pieces: 125 },
-  { id: 2, name: 'Premium Sugar', category: 'Grocery', price: 120, unit: 'kg', stock: 8, pieces: 8 },
-  { id: 3, name: 'Soybean Oil', category: 'Grocery', price: 180, unit: 'L', stock: 45, pieces: 45 },
-  { id: 4, name: 'Atta Flour', category: 'Grocery', price: 45, unit: 'kg', stock: 3, pieces: 3 },
-  { id: 5, name: 'Red Lentils', category: 'Pulses', price: 130, unit: 'kg', stock: 22, pieces: 22 },
-  { id: 6, name: 'Iodized Salt', category: 'Spices', price: 40, unit: 'kg', stock: 50, pieces: 50 },
-  { id: 7, name: 'Milk Powder', category: 'Dairy', price: 450, unit: 'pcs', stock: 15, pieces: 15 },
-  { id: 8, name: 'Ceylon Tea', category: 'Beverages', price: 380, unit: 'kg', stock: 2, pieces: 2 },
-  { id: 9, name: 'Chinigura Rice', category: 'Grocery', price: 95, unit: 'kg', stock: 60, pieces: 60 },
-  { id: 10, name: 'Chickpeas', category: 'Pulses', price: 110, unit: 'kg', stock: 18, pieces: 18 },
+  { id: 1, name: 'Miniket Rice',    category: 'Grocery',   price: 75,  unit: 'kg',  stock: 125, pieces: 125 },
+  { id: 2, name: 'Premium Sugar',   category: 'Grocery',   price: 120, unit: 'kg',  stock: 8,   pieces: 8   },
+  { id: 3, name: 'Soybean Oil',     category: 'Grocery',   price: 180, unit: 'L',   stock: 45,  pieces: 45  },
+  { id: 4, name: 'Atta Flour',      category: 'Grocery',   price: 45,  unit: 'kg',  stock: 3,   pieces: 3   },
+  { id: 5, name: 'Red Lentils',     category: 'Pulses',    price: 130, unit: 'kg',  stock: 22,  pieces: 22  },
+  { id: 6, name: 'Iodized Salt',    category: 'Spices',    price: 40,  unit: 'kg',  stock: 50,  pieces: 50  },
+  { id: 7, name: 'Milk Powder',     category: 'Dairy',     price: 450, unit: 'pcs', stock: 15,  pieces: 15  },
+  { id: 8, name: 'Ceylon Tea',      category: 'Beverages', price: 380, unit: 'kg',  stock: 2,   pieces: 2   },
+  { id: 9, name: 'Chinigura Rice',  category: 'Grocery',   price: 95,  unit: 'kg',  stock: 60,  pieces: 60  },
+  { id: 10, name: 'Chickpeas',      category: 'Pulses',    price: 110, unit: 'kg',  stock: 18,  pieces: 18  },
 ];
 
-// Initialize
+// Seed some demo transactions
+const now = new Date();
+function demoTxn(customer, method, items, minutesAgo) {
+  const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+  const vat = subtotal * 0.05;
+  const total = subtotal + vat;
+  const time = new Date(now.getTime() - minutesAgo * 60000);
+  return { id: ++invoiceCounter - 1, invoiceNo: `INV-2025-00${invoiceCounter}`, customer, method, items, subtotal, vat, total, time };
+}
+allTransactions = [
+  demoTxn('Abdul Rahman', 'cash',  [{ name:'Miniket Rice', price:75, qty:5 }, { name:'Soybean Oil', price:180, qty:2 }], 30),
+  demoTxn('Walk-in',      'bkash', [{ name:'Milk Powder', price:450, qty:1 }], 65),
+  demoTxn('Fatema Begum', 'cash',  [{ name:'Red Lentils', price:130, qty:3 }, { name:'Iodized Salt', price:40, qty:2 }], 120),
+  demoTxn('Walk-in',      'nagad', [{ name:'Ceylon Tea', price:380, qty:1 }, { name:'Chickpeas', price:110, qty:2 }], 180),
+  demoTxn('Karim Mia',    'due',   [{ name:'Atta Flour', price:45, qty:10 }], 240),
+];
+
+// ---- Initialize ----
 document.addEventListener('DOMContentLoaded', () => {
   updateDateTime();
   setInterval(updateDateTime, 1000);
   renderProducts();
   renderInventory();
   updateLowStockCount();
+  updateInvoiceNumber();
+  renderDashboard();
+  renderStatementTransactions();
+  setTodayDate();
 });
 
-// Theme Toggle
-function toggleTheme() {
-  currentTheme = currentTheme === 'light' ? 'dark' : 'light';
-  document.documentElement.setAttribute('data-theme', currentTheme);
-  const icon = document.querySelector('.theme-toggle i');
-  icon.className = currentTheme === 'light' ? 'fas fa-sun' : 'fas fa-moon';
-}
-
-// DateTime
+// ---- DateTime ----
 function updateDateTime() {
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-BD', { year: 'numeric', month: 'long', day: 'numeric' });
-  const timeStr = now.toLocaleTimeString('en-BD', { hour: '2-digit', minute: '2-digit' });
-  
-  const dateEl = document.getElementById('currentDate');
-  const timeEl = document.getElementById('currentTime');
-  if (dateEl) dateEl.textContent = dateStr;
-  if (timeEl) timeEl.textContent = timeStr;
+  const timeStr = now.toLocaleTimeString('en-BD', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const el1 = document.getElementById('currentDate');
+  const el2 = document.getElementById('currentTime');
+  const el3 = document.getElementById('dashDate');
+  if (el1) el1.textContent = dateStr;
+  if (el2) el2.textContent = timeStr;
+  if (el3) el3.textContent = dateStr;
 }
 
-// PIN Functions
+function setTodayDate() {
+  const today = new Date().toISOString().split('T')[0];
+  const dd = document.getElementById('dueDate');
+  if (dd) dd.value = today;
+}
+
+// ============================================================
+//   LOGIN / PIN
+// ============================================================
 function addPinDigit(digit) {
   if (pinCode.length < 6) {
     pinCode += digit;
     updatePinDisplay();
-    if (pinCode.length === 6) {
-      setTimeout(verifyPin, 200);
-    }
+    if (pinCode.length === 6) setTimeout(verifyPin, 200);
   }
 }
 
 function clearPin() {
   pinCode = '';
   updatePinDisplay();
+  document.getElementById('pinError').textContent = '';
 }
 
 function updatePinDisplay() {
@@ -81,10 +107,17 @@ function updatePinDisplay() {
 
 function verifyPin() {
   if (pinCode === CORRECT_PIN) {
+    document.getElementById('pinError').textContent = '';
     document.getElementById('loginScreen').classList.add('hidden');
-    document.getElementById('dashboard').classList.add('active');
+    const dash = document.getElementById('dashboard');
+    dash.classList.add('active');
+    renderDashboard();
   } else {
-    alert('Invalid PIN! Demo PIN: 123456');
+    document.getElementById('pinError').textContent = 'Incorrect PIN. Please try again.';
+    // shake animation
+    const dots = document.querySelector('.pin-display');
+    dots.classList.add('pin-shake');
+    setTimeout(() => dots.classList.remove('pin-shake'), 500);
     clearPin();
   }
 }
@@ -95,35 +128,123 @@ function lockScreen() {
   clearPin();
 }
 
-// Tab Switching
-function switchTab(tabName) {
-  document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-  document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
-  
-  event.currentTarget.classList.add('active');
-  document.getElementById(tabName + 'Tab').classList.add('active');
-  
-  const titles = {
-    sales: 'Sales Dashboard',
-    inventory: 'Inventory Management',
-    dues: 'Due Management (Baki)',
-    statement: 'Financial Statement'
-  };
-  document.getElementById('pageTitle').textContent = titles[tabName];
+// ============================================================
+//   TAB SWITCHING
+// ============================================================
+function switchTab(tabName, el) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+
+  const targetEl = el || document.getElementById(`tab-${tabName}`);
+  if (targetEl) targetEl.classList.add('active');
+
+  const pane = document.getElementById(tabName + 'Tab');
+  if (pane) pane.classList.add('active');
+
+  if (tabName === 'statement') renderStatementTransactions();
+  if (tabName === 'dashboard') renderDashboard();
 }
 
-// Render Products Table
-function renderProducts() {
+// ============================================================
+//   DASHBOARD
+// ============================================================
+function renderDashboard() {
+  // KPI
+  const todayTxns = allTransactions;
+  const totalSales = todayTxns.length;
+  const totalRevenue = todayTxns.reduce((s, t) => s + t.total, 0);
+
+  animateCount('todaySales', `৳${totalRevenue.toFixed(0)}`);
+  animateCount('todayRevenue', `৳${(totalRevenue * 0.18).toFixed(0)}`);
+  animateCount('totalOrders', totalSales);
+
+  // Recent Transactions
+  const txnList = document.getElementById('recentTxnList');
+  if (txnList) {
+    txnList.innerHTML = allTransactions.slice(-5).reverse().map(t => `
+      <div class="txn-item">
+        <div class="txn-dot ${t.method}"></div>
+        <div class="txn-info">
+          <div class="txn-name">${t.customer || 'Walk-in'}</div>
+          <div class="txn-time">${formatTime(t.time)}</div>
+        </div>
+        <div class="txn-amount">৳${t.total.toFixed(2)}</div>
+      </div>
+    `).join('');
+  }
+
+  // Top Products
+  const productSales = {};
+  allTransactions.forEach(t => {
+    t.items.forEach(item => {
+      productSales[item.name] = (productSales[item.name] || 0) + item.qty;
+    });
+  });
+  const sorted = Object.entries(productSales).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const maxQty = sorted[0]?.[1] || 1;
+
+  const tpList = document.getElementById('topProductsList');
+  if (tpList) {
+    tpList.innerHTML = sorted.map(([name, qty], i) => `
+      <div class="top-product-item">
+        <div class="tp-rank">${i + 1}</div>
+        <div class="tp-info">
+          <div class="tp-name">${name}</div>
+          <div class="tp-qty">${qty} units sold</div>
+        </div>
+        <div class="tp-bar-wrap">
+          <div class="tp-bar"><div class="tp-bar-fill" style="width:${(qty/maxQty)*100}%"></div></div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Stock Alerts
+  const alerts = products.filter(p => p.stock <= 10);
+  const saList = document.getElementById('stockAlertList');
+  if (saList) {
+    saList.innerHTML = alerts.map(p => `
+      <div class="stock-alert-item">
+        <div class="sa-icon ${p.stock <= 3 ? 'danger' : 'warning'}">
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div class="sa-info">
+          <div class="sa-name">${p.name}</div>
+          <div class="sa-stock">${p.stock} ${p.unit} remaining</div>
+        </div>
+        <span class="sa-badge ${p.stock <= 3 ? 'critical' : 'low'}">${p.stock <= 3 ? 'Critical' : 'Low'}</span>
+      </div>
+    `).join('') || '<p style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center">No stock alerts 🎉</p>';
+  }
+}
+
+function animateCount(id, target) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = target;
+}
+
+function formatTime(date) {
+  return new Date(date).toLocaleTimeString('en-BD', { hour: '2-digit', minute: '2-digit' });
+}
+
+function refreshDashboard() {
+  renderDashboard();
+  showToast('Dashboard refreshed!', 'success');
+}
+
+// ============================================================
+//   PRODUCT CATALOG
+// ============================================================
+function renderProducts(list = products) {
   const tbody = document.getElementById('productTableBody');
-  tbody.innerHTML = products.map(p => {
+  if (!tbody) return;
+  tbody.innerHTML = list.map(p => {
     const stockClass = p.stock > 10 ? 'good' : p.stock > 5 ? 'warning' : 'danger';
     return `
       <tr>
         <td>
           <div class="product-info">
-            <div class="product-icon">
-              <i class="fas fa-box"></i>
-            </div>
+            <div class="product-icon"><i class="fas fa-box"></i></div>
             <div class="product-details">
               <div class="product-name">${p.name}</div>
               <div class="product-category">${p.category}</div>
@@ -131,11 +252,9 @@ function renderProducts() {
           </div>
         </td>
         <td><strong>৳${p.price}</strong> / ${p.unit}</td>
+        <td><span class="stock-badge ${stockClass}">${p.stock} ${p.unit}</span></td>
         <td>
-          <span class="stock-badge ${stockClass}">${p.stock} ${p.unit}</span>
-        </td>
-        <td>
-          <button class="add-to-cart-btn" onclick="selectProduct(${p.id})">
+          <button class="add-to-cart-btn" onclick="selectProduct(${p.id})" title="Add to cart">
             <i class="fas fa-plus"></i>
           </button>
         </td>
@@ -144,40 +263,56 @@ function renderProducts() {
   }).join('');
 }
 
-// Select Product
+function filterCategory(cat, btn) {
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const filtered = cat === 'all' ? products : products.filter(p => p.category === cat);
+  renderProducts(filtered);
+}
+
 function selectProduct(productId) {
   selectedProduct = products.find(p => p.id === productId);
-  document.getElementById('selectedProductName').textContent = selectedProduct.name;
-  currentMultiplier = 1;
+  const chip = document.getElementById('selectedProductName');
+  const chipWrap = document.getElementById('selectedProductChip');
+  if (chip) chip.textContent = selectedProduct.name;
+  if (chipWrap) {
+    chipWrap.style.background = 'rgba(99,102,241,0.12)';
+    chipWrap.style.borderColor = 'rgba(99,102,241,0.4)';
+    setTimeout(() => {
+      chipWrap.style.background = '';
+      chipWrap.style.borderColor = '';
+    }, 600);
+  }
 }
 
-// Apply Multiplier
+// ---- Custom Qty Input ----
+function applyCustomQty() {
+  if (!selectedProduct) { showToast('Select a product first!', 'warning'); return; }
+  const val = parseFloat(document.getElementById('customQtyInput').value);
+  if (isNaN(val) || val <= 0) { showToast('Enter a valid quantity', 'error'); return; }
+  let displayQty = val + ' ' + selectedProduct.unit;
+  addToCart(selectedProduct, val, displayQty);
+  document.getElementById('customQtyInput').value = '';
+}
+
+// ---- Multiplier ----
 function applyMultiplier(value) {
-  if (!selectedProduct) {
-    alert('Please select a product first!');
-    return;
-  }
-  
-  currentMultiplier = value;
-  let quantity = value;
-  let displayQty = value;
-  
-  if (value < 1) {
-    displayQty = (value * 1000) + 'g';
-  }
-  
-  addToCart(selectedProduct, quantity, displayQty);
+  if (!selectedProduct) { showToast('Select a product first!', 'warning'); return; }
+  let displayQty = value >= 1 ? `${value} ${selectedProduct.unit}` : `${value * 1000}g`;
+  addToCart(selectedProduct, value, displayQty);
 }
 
-// Add to Cart
+// ============================================================
+//   CART
+// ============================================================
 function addToCart(product, quantity, displayQty = null) {
   const existingItem = cart.find(item => item.id === product.id);
   const qty = typeof quantity === 'number' ? quantity : 1;
-  const display = displayQty || qty;
-  
+  const display = displayQty || qty + ' ' + product.unit;
+
   if (existingItem) {
     existingItem.quantity += qty;
-    existingItem.displayQuantity = existingItem.quantity;
+    existingItem.displayQuantity = `${existingItem.quantity} ${product.unit}`;
   } else {
     cart.push({
       id: product.id,
@@ -188,29 +323,31 @@ function addToCart(product, quantity, displayQty = null) {
       unit: product.unit
     });
   }
-  
-  renderCart();
   selectedProduct = null;
-  document.getElementById('selectedProductName').textContent = 'None';
+  document.getElementById('selectedProductName').textContent = 'Select a product';
+  renderCart();
+  showToast(`${product.name} added to cart`, 'success');
 }
 
-// Render Cart
 function renderCart() {
   const container = document.getElementById('cartItems');
-  
+  const countBadge = document.getElementById('cartCount');
+  if (!container) return;
+
   if (cart.length === 0) {
     container.innerHTML = `
       <div class="empty-cart">
         <i class="fas fa-shopping-cart"></i>
-        <p>No items in cart</p>
-      </div>
-    `;
+        <p>Cart is empty</p>
+        <span>Select products to add</span>
+      </div>`;
     document.getElementById('cartSubtotal').textContent = '৳0';
     document.getElementById('cartVat').textContent = '৳0';
     document.getElementById('cartTotal').textContent = '৳0';
+    if (countBadge) countBadge.textContent = '0 items';
     return;
   }
-  
+
   let subtotal = 0;
   container.innerHTML = cart.map((item, index) => {
     const itemTotal = item.price * item.quantity;
@@ -224,103 +361,165 @@ function renderCart() {
         <div class="cart-item-actions">
           <span><strong>৳${itemTotal.toFixed(2)}</strong></span>
           <div class="qty-control">
-            <button class="qty-btn" onclick="updateCartItem(${index}, -1)">-</button>
-            <span>${item.quantity}</span>
+            <button class="qty-btn" onclick="updateCartItem(${index}, -1)">−</button>
+            <span>${item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(2)}</span>
             <button class="qty-btn" onclick="updateCartItem(${index}, 1)">+</button>
           </div>
         </div>
-      </div>
-    `;
+      </div>`;
   }).join('');
-  
+
+  const discountEl = document.getElementById('discountInput');
+  const discount = discountEl ? (parseFloat(discountEl.value) || 0) : 0;
   const vat = subtotal * 0.05;
-  const total = subtotal + vat;
-  
+  const total = subtotal + vat - discount;
+
   document.getElementById('cartSubtotal').textContent = `৳${subtotal.toFixed(2)}`;
   document.getElementById('cartVat').textContent = `৳${vat.toFixed(2)}`;
-  document.getElementById('cartTotal').textContent = `৳${total.toFixed(2)}`;
+  document.getElementById('cartTotal').textContent = `৳${Math.max(0, total).toFixed(2)}`;
+  if (countBadge) countBadge.textContent = `${cart.length} item${cart.length !== 1 ? 's' : ''}`;
 }
 
-// Update Cart Item
 function updateCartItem(index, change) {
-  const item = cart[index];
-  item.quantity += change;
-  
-  if (item.quantity <= 0) {
-    cart.splice(index, 1);
-  }
-  
+  cart[index].quantity += change;
+  if (cart[index].quantity <= 0) cart.splice(index, 1);
   renderCart();
 }
 
-// Select Payment
-function selectPayment(method) {
-  selectedPayment = method;
-  document.querySelectorAll('.payment-option').forEach(btn => btn.classList.remove('active'));
-  event.currentTarget.classList.add('active');
-  
-  document.getElementById('dueSettings').style.display = method === 'due' ? 'block' : 'none';
+function clearCart() {
+  if (cart.length === 0) return;
+  if (confirm('Clear the entire cart?')) {
+    cart = [];
+    renderCart();
+    showToast('Cart cleared', 'info');
+  }
 }
 
-// Process Checkout
+// ============================================================
+//   PAYMENT
+// ============================================================
+function selectPayment(method, btn) {
+  selectedPayment = method;
+  document.querySelectorAll('.payment-option').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const dueSettings = document.getElementById('dueSettings');
+  if (dueSettings) dueSettings.style.display = method === 'due' ? 'flex' : 'none';
+}
+
+// ============================================================
+//   CHECKOUT
+// ============================================================
+function updateInvoiceNumber() {
+  const num = `INV-2025-${String(invoiceCounter).padStart(3, '0')}`;
+  const el = document.getElementById('invoiceNumber');
+  if (el) el.textContent = num;
+}
+
 function processCheckout() {
-  if (cart.length === 0) {
-    alert('Cart is empty!');
-    return;
-  }
-  
+  if (cart.length === 0) { showToast('Cart is empty!', 'error'); return; }
+
   if (selectedPayment === 'bkash' || selectedPayment === 'nagad') {
     showQRModal();
   } else {
-    showReceipt();
+    completeTransaction();
   }
 }
 
-// Show QR Modal
 function showQRModal() {
-  const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0) * 1.05;
+  const total = computeTotal();
+  const modalTitle = document.getElementById('bkashModalTitle');
+  if (modalTitle) modalTitle.textContent = selectedPayment === 'nagad' ? 'Nagad Payment' : 'bKash Payment';
   document.getElementById('bkashAmount').textContent = `৳${total.toFixed(2)}`;
   document.getElementById('bkashModal').classList.add('show');
 }
 
 function closeBkashModal() {
   document.getElementById('bkashModal').classList.remove('show');
-  showReceipt();
+  completeTransaction();
 }
 
-// Show Receipt
-function showReceipt() {
-  const modal = document.getElementById('receiptModal');
-  const container = document.getElementById('receiptItems');
-  
-  let subtotal = 0;
-  container.innerHTML = cart.map(item => {
-    const itemTotal = item.price * item.quantity;
-    subtotal += itemTotal;
-    return `
-      <div class="receipt-item">
-        <span>${item.name} × ${item.displayQuantity}</span>
-        <span>৳${itemTotal.toFixed(2)}</span>
-      </div>
-    `;
-  }).join('');
-  
+function completeTransaction() {
+  const customerName = document.getElementById('customerName')?.value.trim() || 'Walk-in';
+  const customerPhone = document.getElementById('customerPhone')?.value.trim() || '';
+  const discountEl = document.getElementById('discountInput');
+  const discount = discountEl ? (parseFloat(discountEl.value) || 0) : 0;
+
+  let subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
   const vat = subtotal * 0.05;
-  const total = subtotal + vat;
-  
-  container.innerHTML += `
-    <div class="receipt-item">
-      <span>VAT (5%)</span>
-      <span>৳${vat.toFixed(2)}</span>
-    </div>
-  `;
-  
-  document.getElementById('receiptTotal').textContent = `Total: ৳${total.toFixed(2)}`;
-  modal.classList.add('show');
-  
-  // Clear cart
+  const total = Math.max(0, subtotal + vat - discount);
+
+  const invoiceNo = `INV-2025-${String(invoiceCounter).padStart(3, '0')}`;
+
+  const txn = {
+    id: invoiceCounter,
+    invoiceNo,
+    customer: customerName,
+    phone: customerPhone,
+    method: selectedPayment,
+    items: cart.map(i => ({ name: i.name, price: i.price, qty: i.quantity, unit: i.unit })),
+    subtotal, vat, discount, total,
+    time: new Date()
+  };
+  allTransactions.push(txn);
+
+  // Deduct stock
+  cart.forEach(ci => {
+    const prod = products.find(p => p.id === ci.id);
+    if (prod) { prod.stock = Math.max(0, prod.stock - ci.quantity); prod.pieces = prod.stock; }
+  });
+
+  invoiceCounter++;
+  updateInvoiceNumber();
+  showReceipt(txn);
+
+  // Clear
   cart = [];
   renderCart();
+  if (discountEl) discountEl.value = '';
+  document.getElementById('customerName').value = '';
+  document.getElementById('customerPhone').value = '';
+  renderInventory();
+  updateLowStockCount();
+}
+
+function computeTotal() {
+  const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const vat = subtotal * 0.05;
+  const discount = parseFloat(document.getElementById('discountInput')?.value) || 0;
+  return Math.max(0, subtotal + vat - discount);
+}
+
+// ============================================================
+//   RECEIPT
+// ============================================================
+function showReceipt(txn) {
+  const modal = document.getElementById('receiptModal');
+  const container = document.getElementById('receiptItems');
+
+  document.getElementById('receiptInvoice').textContent = txn.invoiceNo;
+  document.getElementById('receiptDateTime').textContent = new Date(txn.time).toLocaleString('en-BD');
+
+  const custInfo = document.getElementById('receiptCustomerInfo');
+  if (custInfo) {
+    custInfo.innerHTML = txn.customer !== 'Walk-in' ? `
+      <div>Customer: <strong>${txn.customer}</strong>${txn.phone ? ` | ${txn.phone}` : ''}</div>
+    ` : '';
+  }
+
+  container.innerHTML = txn.items.map(item => `
+    <div class="receipt-item">
+      <span>${item.name} × ${item.qty} ${item.unit}</span>
+      <span>৳${(item.price * item.qty).toFixed(2)}</span>
+    </div>
+  `).join('') + `
+    <div class="receipt-item"><span>VAT (5%)</span><span>৳${txn.vat.toFixed(2)}</span></div>
+    ${txn.discount > 0 ? `<div class="receipt-item"><span>Discount</span><span>-৳${txn.discount.toFixed(2)}</span></div>` : ''}
+  `;
+
+  document.getElementById('receiptTotal').textContent = `Total: ৳${txn.total.toFixed(2)}`;
+  document.getElementById('receiptPayment').textContent = `Payment: ${txn.method.toUpperCase()}`;
+
+  modal.classList.add('show');
 }
 
 function closeReceiptModal() {
@@ -331,121 +530,280 @@ function printReceipt() {
   window.print();
 }
 
+function printStatement() {
+  const content = document.getElementById('statementTab').innerHTML;
+  const printWin = window.open('', '_blank');
+  printWin.document.write(`
+    <html><head><title>Financial Statement</title>
+    <style>
+      body { font-family: sans-serif; padding: 20px; color: #111; }
+      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+      th, td { padding: 10px 14px; border-bottom: 1px solid #eee; text-align: left; font-size: 13px; }
+      th { background: #f8f8f8; font-weight: 600; }
+      h2 { font-size: 20px; margin-bottom: 4px; }
+      .sc-row { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
+      .sc { padding: 16px; border-radius: 8px; color: white; flex: 1; min-width: 150px; }
+      .sc h3 { font-size: 22px; font-weight: 800; }
+      .sc span { font-size: 12px; opacity: .85; }
+      .sc.b { background: #667eea; } .sc.g { background: #10b981; }
+      .sc.p { background: #8b5cf6; } .sc.o { background: #f59e0b; }
+    </style></head><body>
+    <h2>SmartRetail — Financial Statement</h2>
+    <p style="color:#666;font-size:13px">Printed: ${new Date().toLocaleString('en-BD')}</p>
+    <div class="sc-row">
+      <div class="sc b"><span>Total Sales</span><h3>৳1,89,450</h3></div>
+      <div class="sc g"><span>Gross Profit</span><h3>৳42,800</h3></div>
+      <div class="sc p"><span>Net Profit</span><h3>৳35,620</h3></div>
+      <div class="sc o"><span>Margin</span><h3>18.8%</h3></div>
+    </div>
+    <h3 style="margin-bottom:10px;font-size:15px">Transaction Details</h3>
+    <table>
+      <thead><tr><th>Invoice</th><th>Customer</th><th>Method</th><th>Items</th><th>Total</th><th>Time</th></tr></thead>
+      <tbody>
+        ${allTransactions.map(t => `
+          <tr>
+            <td>${t.invoiceNo}</td>
+            <td>${t.customer}</td>
+            <td>${t.method.toUpperCase()}</td>
+            <td>${t.items.map(i => i.name).join(', ')}</td>
+            <td><strong>৳${t.total.toFixed(2)}</strong></td>
+            <td>${new Date(t.time).toLocaleTimeString('en-BD', {hour:'2-digit',minute:'2-digit'})}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    </body></html>
+  `);
+  printWin.document.close();
+  printWin.print();
+}
+
 function sendWhatsApp() {
-  const phone = prompt('Enter customer WhatsApp number:');
+  const phone = prompt('Enter customer WhatsApp number (with country code):');
   if (phone) {
-    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0) * 1.05;
-    const message = `Smart Retail Store%0AInvoice: INV-2024-089%0ATotal: ৳${total.toFixed(2)}%0AThank you!`;
-    window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+    const lastTxn = allTransactions[allTransactions.length - 1];
+    const msg = lastTxn
+      ? `SmartRetail Store%0A${lastTxn.invoiceNo}%0ACustomer: ${lastTxn.customer}%0AItems: ${lastTxn.items.map(i => i.name + ' x' + i.qty).join(', ')}%0ATotal: ৳${lastTxn.total.toFixed(2)}%0AThank you!`
+      : `SmartRetail Store - Thank you for shopping!`;
+    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
   }
 }
 
 function sendSMS() {
-  alert('SMS feature - Integrate with GreenWeb/BulkSMSBD API');
+  showToast('SMS: Integrate with GreenWeb / BulkSMSBD API', 'info');
 }
 
-// Render Inventory
-function renderInventory() {
+// ============================================================
+//   INVENTORY
+// ============================================================
+function renderInventory(list = products) {
   const tbody = document.getElementById('inventoryTableBody');
+  if (!tbody) return;
   let totalValue = 0;
-  
-  tbody.innerHTML = products.map(p => {
-    const stockValue = p.price * p.pieces;
-    totalValue += stockValue;
+
+  tbody.innerHTML = list.map(p => {
+    const val = p.price * p.pieces;
+    totalValue += val;
     const status = p.pieces > 10 ? 'instock' : 'lowstock';
     const statusText = p.pieces > 10 ? 'In Stock' : 'Low Stock';
-    
     return `
       <tr>
         <td><strong>${p.name}</strong></td>
         <td>${p.category}</td>
         <td>৳${p.price}</td>
         <td><strong>${p.pieces}</strong> ${p.unit}</td>
-        <td>৳${stockValue.toFixed(2)}</td>
+        <td>৳${val.toFixed(2)}</td>
         <td><span class="status-badge ${status}">${statusText}</span></td>
         <td class="action-icons">
-          <i class="fas fa-edit" onclick="editProduct(${p.id})"></i>
-          <i class="fas fa-trash-alt" onclick="deleteProduct(${p.id})"></i>
+          <i class="fas fa-edit" onclick="editProduct(${p.id})" title="Edit"></i>
+          <i class="fas fa-trash-alt" onclick="deleteProduct(${p.id})" title="Delete"></i>
         </td>
-      </tr>
-    `;
+      </tr>`;
   }).join('');
-  
-  document.getElementById('totalStockValue').textContent = `৳${totalValue.toFixed(2)}`;
-  document.getElementById('totalProducts').textContent = products.length;
+
+  const tv = document.getElementById('totalStockValue');
+  const tp = document.getElementById('totalProducts');
+  const ls = document.getElementById('lowStockItems2');
+  if (tv) tv.textContent = `৳${totalValue.toFixed(2)}`;
+  if (tp) tp.textContent = list.length;
+  if (ls) ls.textContent = list.filter(p => p.pieces <= 10).length;
 }
 
-// Update Low Stock Count
+function searchInventory(term) {
+  const filtered = products.filter(p =>
+    p.name.toLowerCase().includes(term.toLowerCase()) ||
+    p.category.toLowerCase().includes(term.toLowerCase())
+  );
+  renderInventory(filtered);
+}
+
 function updateLowStockCount() {
   const lowStock = products.filter(p => p.pieces <= 5).length;
-  document.getElementById('lowStockItems').textContent = lowStock;
-  document.getElementById('lowStockCount').textContent = `${lowStock} Low Stock`;
+  const el1 = document.getElementById('lowStockItems');
+  const el2 = document.getElementById('lowStockCount');
+  if (el1) el1.textContent = lowStock;
+  if (el2) el2.textContent = `${lowStock} Low Stock`;
 }
 
-// Product Actions
 function editProduct(id) {
-  alert(`Edit product ${id}`);
-}
-
-function deleteProduct(id) {
-  if (confirm('Delete this product?')) {
-    const index = products.findIndex(p => p.id === id);
-    if (index > -1) {
-      products.splice(index, 1);
-      renderProducts();
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  const newPrice = prompt(`Edit price for ${p.name} (current: ৳${p.price}):`, p.price);
+  if (newPrice !== null) {
+    const parsed = parseFloat(newPrice);
+    if (!isNaN(parsed) && parsed > 0) {
+      p.price = parsed;
       renderInventory();
-      updateLowStockCount();
+      renderProducts();
+      showToast(`${p.name} price updated to ৳${parsed}`, 'success');
+    } else {
+      showToast('Invalid price entered', 'error');
     }
   }
 }
 
+function deleteProduct(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  if (confirm(`Delete "${p.name}" from inventory?`)) {
+    const index = products.findIndex(x => x.id === id);
+    products.splice(index, 1);
+    renderProducts();
+    renderInventory();
+    updateLowStockCount();
+    showToast(`${p.name} removed`, 'info');
+  }
+}
+
 function showAddProductModal() {
-  alert('Add Product Modal - Connect to backend');
+  showToast('Add Product: Connect to backend API', 'info');
+}
+
+// ============================================================
+//   DUES
+// ============================================================
+function showAddDueModal() {
+  showToast('Add Due: Connect to backend API', 'info');
+}
+
+function markDuePaid(btn) {
+  const row = btn.closest('tr');
+  if (row) {
+    row.style.transition = 'all 0.3s ease';
+    row.style.opacity = '0.5';
+    setTimeout(() => {
+      row.style.opacity = '1';
+      const badge = row.querySelector('.status-badge');
+      const daysBadge = row.querySelector('.days-badge');
+      if (badge) { badge.className = 'status-badge instock'; badge.textContent = 'Paid'; }
+      if (daysBadge) { daysBadge.className = 'days-badge pending'; daysBadge.textContent = 'Paid'; }
+      showToast('Due marked as paid!', 'success');
+    }, 300);
+  }
+}
+
+function callCustomer(phone) {
+  window.location.href = `tel:${phone.replace(/-/g, '')}`;
+}
+
+function whatsappCustomer(phone) {
+  const cleaned = phone.replace(/-/g, '').replace(/^0/, '880');
+  window.open(`https://wa.me/${cleaned}?text=আপনার পেমেন্টের কথা মনে করিয়ে দিতে চাইছি। অনুগ্রহ করে যোগাযোগ করুন।`, '_blank');
+}
+
+// ============================================================
+//   STATEMENT
+// ============================================================
+function renderStatementTransactions() {
+  const list = document.getElementById('txnDetailList');
+  const countEl = document.getElementById('txnCount');
+  const footerTotal = document.getElementById('txnFooterTotal');
+  if (!list) return;
+
+  if (allTransactions.length === 0) {
+    list.innerHTML = '<p style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No transactions yet</p>';
+    if (countEl) countEl.textContent = '0 records';
+    if (footerTotal) footerTotal.textContent = '৳0.00';
+    return;
+  }
+
+  let grandTotal = 0;
+  list.innerHTML = allTransactions.slice().reverse().map(t => {
+    grandTotal += t.total;
+    const methodLabel = { cash: 'Cash', bkash: 'bKash', nagad: 'Nagad', due: 'Due' }[t.method] || t.method;
+    return `
+      <div class="txn-detail-item">
+        <div class="txn-d-name">
+          <div class="txn-d-dot ${t.method}"></div>
+          <div>
+            <div>${t.customer}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${t.invoiceNo}</div>
+          </div>
+        </div>
+        <div class="txn-d-time">${formatTime(t.time)}</div>
+        <div>
+          <span class="status-badge ${t.method === 'due' ? 'pending' : 'instock'}">${methodLabel}</span>
+        </div>
+        <div class="txn-d-amount">৳${t.total.toFixed(2)}</div>
+      </div>
+    `;
+  }).join('');
+
+  if (countEl) countEl.textContent = `${allTransactions.length} records`;
+  if (footerTotal) footerTotal.textContent = `৳${grandTotal.toFixed(2)}`;
+}
+
+function filterStatement() {
+  renderStatementTransactions();
 }
 
 function downloadStatement() {
-  alert('PDF Statement will be generated');
+  showToast('Generating PDF statement...', 'info');
+  setTimeout(() => showToast('PDF download ready!', 'success'), 1500);
 }
 
-// Search Functionality
+// ============================================================
+//   THEME TOGGLE
+// ============================================================
+function toggleTheme() {
+  currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  const icon = document.querySelector('.theme-toggle i');
+  if (icon) icon.className = currentTheme === 'light' ? 'fas fa-sun' : 'fas fa-moon';
+}
+
+// ============================================================
+//   TOAST NOTIFICATIONS
+// ============================================================
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `
+    <i class="fas ${icons[type]} toast-icon ${type}"></i>
+    <span class="toast-msg">${message}</span>
+  `;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('removing');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// ============================================================
+//   SEARCH (Product)
+// ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.getElementById('productSearch');
   if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
+    searchInput.addEventListener('input', e => {
       const term = e.target.value.toLowerCase();
-      const filtered = products.filter(p => 
-        p.name.toLowerCase().includes(term) || 
-        p.category.toLowerCase().includes(term)
+      const filtered = products.filter(p =>
+        p.name.toLowerCase().includes(term) || p.category.toLowerCase().includes(term)
       );
-      
-      const tbody = document.getElementById('productTableBody');
-      tbody.innerHTML = filtered.map(p => {
-        const stockClass = p.stock > 10 ? 'good' : p.stock > 5 ? 'warning' : 'danger';
-        return `
-          <tr>
-            <td>
-              <div class="product-info">
-                <div class="product-icon">
-                  <i class="fas fa-box"></i>
-                </div>
-                <div class="product-details">
-                  <div class="product-name">${p.name}</div>
-                  <div class="product-category">${p.category}</div>
-                </div>
-              </div>
-            </td>
-            <td><strong>৳${p.price}</strong> / ${p.unit}</td>
-            <td>
-              <span class="stock-badge ${stockClass}">${p.stock} ${p.unit}</span>
-            </td>
-            <td>
-              <button class="add-to-cart-btn" onclick="selectProduct(${p.id})">
-                <i class="fas fa-plus"></i>
-              </button>
-            </td>
-          </tr>
-        `;
-      }).join('');
+      renderProducts(filtered);
     });
   }
 });
