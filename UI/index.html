@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SmartRetail POS | Premium System</title>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -100,8 +100,12 @@
           <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
             <i class="fas fa-sun"></i>
           </button>
-          <div class="sync-badge"><i class="fas fa-cloud-check"></i><span>Synced</span></div>
-          <div class="user-avatar" onclick="lockScreen()" title="Click to Lock">
+          <div class="sync-btn" onclick="syncData()" title="Sync Data">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <span>Sync</span>
+          </div>
+          <div class="user-avatar" onclick="lockScreen()" title="Lock System">
+            <div class="lock-overlay"><i class="fas fa-lock"></i></div>
             <img src="https://ui-avatars.com/api/?name=Shop+Owner&background=6366f1&color=fff&bold=true" alt="User">
             <div class="online-dot"></div>
           </div>
@@ -179,9 +183,7 @@
                 <h4><i class="fas fa-history"></i> Recent Transactions</h4>
                 <span class="view-all" onclick="switchTab('statement', document.getElementById('tab-statement'))">View All</span>
               </div>
-              <div class="recent-txn-list" id="recentTxnList">
-                <!-- injected -->
-              </div>
+              <div class="recent-txn-list" id="recentTxnList"></div>
             </div>
 
             <!-- Top Products -->
@@ -189,9 +191,7 @@
               <div class="dash-card-header">
                 <h4><i class="fas fa-fire"></i> Top Selling Products</h4>
               </div>
-              <div class="top-products-list" id="topProductsList">
-                <!-- injected -->
-              </div>
+              <div class="top-products-list" id="topProductsList"></div>
             </div>
 
             <!-- Stock Alert -->
@@ -200,9 +200,39 @@
                 <h4><i class="fas fa-exclamation-triangle"></i> Stock Alerts</h4>
                 <span id="lowStockItems" class="badge-danger">0</span>
               </div>
-              <div class="stock-alert-list" id="stockAlertList">
-                <!-- injected -->
+              <div class="stock-alert-list" id="stockAlertList"></div>
+            </div>
+
+            <!-- Payment Breakdown Pie Chart -->
+            <div class="dash-card pie-card animate-in" style="--delay:0.4s">
+              <div class="dash-card-header">
+                <h4><i class="fas fa-chart-pie"></i> Payment Breakdown</h4>
+                <span class="view-all" id="pieSubtitle">Today</span>
               </div>
+              <div class="pie-chart-wrap">
+                <canvas id="pieCanvas" width="140" height="140"></canvas>
+                <div class="pie-legend" id="pieLegend"></div>
+              </div>
+            </div>
+
+            <!-- Category Sales Donut -->
+            <div class="dash-card pie-card animate-in" style="--delay:0.45s">
+              <div class="dash-card-header">
+                <h4><i class="fas fa-layer-group"></i> Category Sales</h4>
+                <span class="view-all" id="catSubtitle">Units</span>
+              </div>
+              <div class="pie-chart-wrap">
+                <canvas id="catCanvas" width="140" height="140"></canvas>
+                <div class="pie-legend" id="catLegend"></div>
+              </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="dash-card animate-in" style="--delay:0.5s">
+              <div class="dash-card-header">
+                <h4><i class="fas fa-bolt"></i> Quick Stats</h4>
+              </div>
+              <div class="quick-stats-list" id="quickStatsList"></div>
             </div>
           </div>
         </div>
@@ -232,10 +262,14 @@
             <div class="product-section animate-in" style="--delay:0.05s">
               <div class="section-header">
                 <h3><i class="fas fa-tags"></i> Product Catalog</h3>
-                <div class="search-wrapper">
-                  <i class="fas fa-search"></i>
-                  <input type="text" placeholder="Search products..." id="productSearch">
-                  <button class="barcode-btn" title="Scan Barcode"><i class="fas fa-barcode"></i></button>
+                <div class="search-and-barcode">
+                  <div class="search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Search products..." id="productSearch">
+                  </div>
+                  <button class="barcode-scan-btn" onclick="triggerBarcodeScan()" title="Scan Barcode">
+                    <i class="fas fa-barcode"></i><span>Scan</span>
+                  </button>
                 </div>
               </div>
               <div class="category-filters" id="categoryFilters">
@@ -289,7 +323,7 @@
               </button>
             </div>
 
-            <!-- Cart Section -->
+            <!-- Cart Section (items + summary only) -->
             <div class="cart-section animate-in" style="--delay:0.15s">
               <div class="section-header">
                 <h3><i class="fas fa-shopping-bag"></i> Cart</h3>
@@ -302,9 +336,17 @@
                   <span>Select products to add</span>
                 </div>
               </div>
+              <!-- Summary -->
               <div class="cart-summary">
                 <div class="summary-row"><span>Subtotal</span><span id="cartSubtotal">৳0</span></div>
-                <div class="summary-row"><span>VAT (5%)</span><span id="cartVat">৳0</span></div>
+                <div class="summary-row">
+                  <span>VAT %</span>
+                  <div class="vat-input-wrap">
+                    <input type="number" id="vatInput" value="5" min="0" max="100" step="0.5" oninput="renderCart()">
+                    <span>%</span>
+                  </div>
+                  <span id="cartVat">৳0</span>
+                </div>
                 <div class="summary-row discount-row">
                   <span>Discount</span>
                   <div class="discount-input-wrap">
@@ -314,28 +356,69 @@
                 </div>
                 <div class="summary-row total-row"><span>Total</span><span id="cartTotal">৳0</span></div>
               </div>
-              <!-- Payment Methods -->
-              <div class="payment-section">
-                <p class="payment-label">Payment Method</p>
-                <div class="payment-options">
-                  <button class="payment-option active" onclick="selectPayment('cash', this)">
-                    <i class="fas fa-money-bill-wave"></i><span>Cash</span>
-                  </button>
-                  <button class="payment-option" onclick="selectPayment('bkash', this)">
-                    <i class="fas fa-mobile-alt"></i><span>bKash</span>
-                  </button>
-                  <button class="payment-option" onclick="selectPayment('nagad', this)">
-                    <i class="fas fa-wallet"></i><span>Nagad</span>
-                  </button>
-                  <button class="payment-option" onclick="selectPayment('due', this)">
-                    <i class="fas fa-file-invoice"></i><span>Due</span>
-                  </button>
+            </div>
+
+            <!-- Payment Section (separate right column) -->
+            <div class="payment-panel animate-in" style="--delay:0.2s">
+              <div class="panel-header">
+                <i class="fas fa-credit-card"></i>
+                <h4>Payment Method</h4>
+              </div>
+              <div class="payment-options">
+                <button class="payment-option active" onclick="selectPayment('cash', this)">
+                  <i class="fas fa-money-bill-wave"></i><span>Cash</span>
+                </button>
+                <button class="payment-option" onclick="selectPayment('bkash', this)">
+                  <i class="fas fa-mobile-alt"></i><span>bKash</span>
+                </button>
+                <button class="payment-option" onclick="selectPayment('nagad', this)">
+                  <i class="fas fa-wallet"></i><span>Nagad</span>
+                </button>
+                <button class="payment-option" onclick="selectPayment('due', this)">
+                  <i class="fas fa-file-invoice"></i><span>Due</span>
+                </button>
+              </div>
+
+              <!-- Due Settings -->
+              <div class="due-settings" id="dueSettings" style="display:none">
+                <p class="due-section-label"><i class="fas fa-calendar-alt"></i> Due Period</p>
+                <div class="due-period-btns">
+                  <button class="due-period-btn active" onclick="selectDuePeriod(5, this)">5 days</button>
+                  <button class="due-period-btn" onclick="selectDuePeriod(15, this)">15 days</button>
+                  <button class="due-period-btn" onclick="selectDuePeriod(30, this)">30 days</button>
+                  <button class="due-period-btn" onclick="selectDuePeriod(60, this)">60 days</button>
+                  <button class="due-period-btn" onclick="selectDuePeriod(90, this)">90 days</button>
                 </div>
-                <div class="due-settings" id="dueSettings" style="display:none">
-                  <input type="date" id="dueDate" class="due-date-input">
-                  <input type="text" id="dueNote" placeholder="Due note..." class="due-note-input">
+                <input type="hidden" id="duePeriodDays" value="5">
+                <p class="due-section-label" style="margin-top:12px"><i class="fas fa-user-clock"></i> Customer Info <span class="required-star">*Required</span></p>
+                <div class="due-customer-fields">
+                  <div class="due-field">
+                    <i class="fas fa-user"></i>
+                    <input type="text" id="dueCustomerName" placeholder="Customer Name *" required>
+                  </div>
+                  <div class="due-field">
+                    <i class="fas fa-phone"></i>
+                    <input type="text" id="dueCustomerPhone" placeholder="Phone Number *" required>
+                  </div>
+                  <div class="due-field">
+                    <i class="fas fa-sticky-note"></i>
+                    <input type="text" id="dueNote" placeholder="Note (optional)">
+                  </div>
                 </div>
               </div>
+
+              <!-- Cash received -->
+              <div class="cash-received-section" id="cashSection">
+                <p class="due-section-label"><i class="fas fa-coins"></i> Cash Received</p>
+                <div class="cash-input-wrap">
+                  <span>৳</span>
+                  <input type="number" id="cashReceived" placeholder="0.00" oninput="calcChange()">
+                </div>
+                <div class="change-display" id="changeDisplay" style="display:none">
+                  Change: <strong id="changeAmount">৳0</strong>
+                </div>
+              </div>
+
               <button class="checkout-btn" onclick="processCheckout()">
                 <i class="fas fa-check-circle"></i> Complete Sale
               </button>
@@ -355,6 +438,9 @@
                 <i class="fas fa-search"></i>
                 <input type="text" placeholder="Search inventory..." id="inventorySearch" oninput="searchInventory(this.value)">
               </div>
+              <button class="barcode-scan-btn" onclick="triggerInventoryBarcode()" title="Scan Barcode">
+                <i class="fas fa-barcode"></i><span>Scan</span>
+              </button>
               <button class="btn-primary" onclick="showAddProductModal()">
                 <i class="fas fa-plus"></i> Add Product
               </button>
@@ -380,7 +466,8 @@
                 <tr>
                   <th>Product</th>
                   <th>Category</th>
-                  <th>Price</th>
+                  <th>Purchase Price</th>
+                  <th>Sales Price</th>
                   <th>Stock</th>
                   <th>Value</th>
                   <th>Status</th>
@@ -608,6 +695,80 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================== ADD PRODUCT MODAL ======================== -->
+    <div class="modal" id="addProductModal">
+      <div class="modal-content add-product-modal">
+        <div class="modal-header">
+          <h3><i class="fas fa-plus-circle"></i> Add New Product</h3>
+          <button class="modal-close" onclick="closeAddProductModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="add-product-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Product Name <span class="required-star">*</span></label>
+              <input type="text" id="newProductName" placeholder="e.g. Basmati Rice">
+            </div>
+            <div class="form-group">
+              <label>Category <span class="required-star">*</span></label>
+              <select id="newProductCategory">
+                <option value="">Select Category</option>
+                <option value="Grocery">Grocery</option>
+                <option value="Pulses">Pulses</option>
+                <option value="Dairy">Dairy</option>
+                <option value="Beverages">Beverages</option>
+                <option value="Spices">Spices</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Purchase Price (৳) <span class="required-star">*</span></label>
+              <input type="number" id="newProductPurchasePrice" placeholder="0.00" min="0" step="0.01">
+            </div>
+            <div class="form-group">
+              <label>Sales Price (৳) <span class="required-star">*</span></label>
+              <input type="number" id="newProductSalesPrice" placeholder="0.00" min="0" step="0.01">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Initial Stock <span class="required-star">*</span></label>
+              <input type="number" id="newProductStock" placeholder="0" min="0">
+            </div>
+            <div class="form-group">
+              <label>Unit</label>
+              <select id="newProductUnit">
+                <option value="pcs">pcs</option>
+                <option value="kg">kg</option>
+                <option value="L">L</option>
+                <option value="g">g</option>
+                <option value="ml">ml</option>
+                <option value="box">box</option>
+                <option value="pack">pack</option>
+              </select>
+            </div>
+          </div>
+          <div class="profit-preview" id="profitPreview" style="display:none">
+            <div class="profit-row">
+              <span>Profit per unit:</span>
+              <strong id="profitPerUnit">৳0</strong>
+            </div>
+            <div class="profit-row">
+              <span>Margin:</span>
+              <strong id="profitMargin">0%</strong>
+            </div>
+          </div>
+        </div>
+        <div class="add-product-footer">
+          <button class="btn-secondary" onclick="closeAddProductModal()">Cancel</button>
+          <button class="btn-primary" onclick="saveNewProduct()">
+            <i class="fas fa-save"></i> Save Product
+          </button>
         </div>
       </div>
     </div>
