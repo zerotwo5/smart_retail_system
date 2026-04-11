@@ -1275,13 +1275,15 @@ body {
 }
 .lock-overlay {
   position: absolute; inset: 0; border-radius: 10px;
-  background: rgba(244,63,94,0.85);
+  background: rgba(244,63,94,0.75);
   display: flex; align-items: center; justify-content: center;
   color: white; font-size: 14px;
-  opacity: 0; transition: opacity 0.2s; z-index: 2;
+  opacity: 1;
+  z-index: 2;
 }
-.user-avatar:hover .lock-overlay { opacity: 1; }
-.user-avatar:hover img { filter: brightness(0.5); }
+.user-avatar img { filter: brightness(0.55); }
+.user-avatar:hover .lock-overlay { background: rgba(244,63,94,0.92); }
+.user-avatar:hover img { filter: brightness(0.4); }
 
 /* ---- Dashboard bottom grid: 3 col ---- */
 .dash-bottom-grid {
@@ -1342,7 +1344,7 @@ body {
 /* ---- Sales grid: 4 columns ---- */
 .sales-grid {
   display: grid;
-  grid-template-columns: 1.3fr 0.3fr 0.9fr 0.7fr;
+  grid-template-columns: 1.1fr 0.52fr 0.85fr 0.65fr;
   gap: 14px;
   height: calc(100vh - var(--navbar-h) - 175px);
 }
