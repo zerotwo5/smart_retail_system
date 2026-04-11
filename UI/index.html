@@ -83,6 +83,9 @@
             <div class="nav-tab" id="tab-dues" onclick="switchTab('dues', this)">
               <i class="fas fa-wallet"></i><span>Dues (Baki)</span>
             </div>
+            <div class="nav-tab" id="tab-expenses" onclick="switchTab('expenses', this)">
+              <i class="fas fa-receipt"></i><span>Expenses</span>
+            </div>
             <div class="nav-tab" id="tab-statement" onclick="switchTab('statement', this)">
               <i class="fas fa-file-invoice-dollar"></i><span>Statement</span>
             </div>
@@ -552,6 +555,140 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- ===== EXPENSES TAB ===== -->
+        <div class="tab-pane" id="expensesTab">
+          <div class="expenses-header animate-in">
+            <div>
+              <h2 class="page-title">Expense Tracker</h2>
+              <p class="page-sub">Record and monitor all business expenses</p>
+            </div>
+            <div class="expense-total-badge">
+              <span>Total This Month</span>
+              <strong id="expTotalBadge">৳0</strong>
+            </div>
+          </div>
+
+          <div class="expenses-layout">
+            <!-- Left: Add Expense Form -->
+            <div class="expense-form-card animate-in" style="--delay:0.05s">
+              <div class="expense-form-header">
+                <h4><i class="fas fa-plus-circle"></i> Add New Expense</h4>
+              </div>
+
+              <!-- Amount Input -->
+              <div class="exp-amount-row">
+                <div class="exp-amount-input-wrap">
+                  <span class="exp-currency">৳</span>
+                  <input type="number" id="expAmount" placeholder="0.00" min="0" step="0.01" class="exp-amount-input">
+                </div>
+              </div>
+
+              <!-- Expense Type Buttons -->
+              <div class="exp-type-section">
+                <p class="exp-section-label">Expense Type</p>
+                <div class="exp-type-grid">
+                  <button class="exp-type-btn" data-type="Snacks" onclick="selectExpType(this)">
+                    <i class="fas fa-cookie-bite"></i><span>Snacks</span>
+                  </button>
+                  <button class="exp-type-btn" data-type="Tea" onclick="selectExpType(this)">
+                    <i class="fas fa-mug-hot"></i><span>Tea</span>
+                  </button>
+                  <button class="exp-type-btn" data-type="Meals" onclick="selectExpType(this)">
+                    <i class="fas fa-utensils"></i><span>Meals</span>
+                  </button>
+                  <button class="exp-type-btn" data-type="Chanda" onclick="selectExpType(this)">
+                    <i class="fas fa-hand-holding-heart"></i><span>Chanda</span>
+                  </button>
+                  <button class="exp-type-btn" data-type="Maintenance" onclick="selectExpType(this)">
+                    <i class="fas fa-tools"></i><span>Maintenance</span>
+                  </button>
+                  <button class="exp-type-btn" data-type="Transport" onclick="selectExpType(this)">
+                    <i class="fas fa-truck"></i><span>Transport</span>
+                  </button>
+                  <button class="exp-type-btn" data-type="Utilities" onclick="selectExpType(this)">
+                    <i class="fas fa-bolt"></i><span>Utilities</span>
+                  </button>
+                  <button class="exp-type-btn" data-type="Others" onclick="selectExpType(this)">
+                    <i class="fas fa-ellipsis-h"></i><span>Others</span>
+                  </button>
+                </div>
+                <input type="hidden" id="expType" value="">
+              </div>
+
+              <!-- Description -->
+              <div class="exp-desc-section">
+                <p class="exp-section-label">Description <span style="color:var(--text-muted);font-weight:400">(optional)</span></p>
+                <textarea id="expDescription" placeholder="e.g. Lunch for 3 staff members, bought 2 kg rice for team..." rows="3" class="exp-textarea"></textarea>
+              </div>
+
+              <!-- Add Button -->
+              <button class="add-expense-btn" onclick="addExpense()">
+                <i class="fas fa-plus-circle"></i> Add Expense
+              </button>
+
+              <!-- Today Summary mini -->
+              <div class="exp-today-summary">
+                <div class="exp-sum-row">
+                  <span><i class="fas fa-sun"></i> Today's Expenses</span>
+                  <strong id="expTodayTotal">৳0</strong>
+                </div>
+                <div class="exp-sum-row">
+                  <span><i class="fas fa-calendar-alt"></i> This Month</span>
+                  <strong id="expMonthTotal">৳0</strong>
+                </div>
+                <div class="exp-sum-row">
+                  <span><i class="fas fa-list"></i> Total Records</span>
+                  <strong id="expRecordCount">0</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: List + Chart -->
+            <div class="expense-right-col">
+              <!-- Bar Chart -->
+              <div class="exp-chart-card animate-in" style="--delay:0.1s">
+                <div class="exp-chart-header">
+                  <h4><i class="fas fa-chart-bar"></i> Expense Breakdown by Category</h4>
+                  <span id="expChartSubtitle" class="view-all">This Month</span>
+                </div>
+                <div class="exp-bar-chart" id="expBarChart">
+                  <div class="exp-chart-empty"><i class="fas fa-chart-bar"></i><p>No expenses yet</p></div>
+                </div>
+              </div>
+
+              <!-- Expense List -->
+              <div class="exp-list-card animate-in" style="--delay:0.15s">
+                <div class="exp-list-header">
+                  <h4><i class="fas fa-list-ul"></i> Expense History</h4>
+                  <button class="exp-clear-btn" onclick="clearAllExpenses()">
+                    <i class="fas fa-trash-alt"></i> Clear All
+                  </button>
+                </div>
+                <div class="exp-list-table-wrap">
+                  <table class="exp-list-table">
+                    <thead>
+                      <tr>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Amount</th>
+                        <th>Time</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="expListBody">
+                      <tr class="exp-empty-row">
+                        <td colspan="5">
+                          <div class="exp-list-empty"><i class="fas fa-inbox"></i><p>No expenses recorded yet</p></div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

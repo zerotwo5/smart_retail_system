@@ -1209,3 +1209,224 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!p.salesPrice) p.salesPrice = p.price;
   });
 });
+
+// ============================================================
+//   EXPENSES MODULE
+// ============================================================
+
+let expenses = [
+  { id: 1, type: 'Tea',         amount: 80,   description: 'Morning tea for staff',      time: new Date(Date.now() - 5*3600000) },
+  { id: 2, type: 'Meals',       amount: 450,  description: 'Lunch for 3 members',        time: new Date(Date.now() - 4*3600000) },
+  { id: 3, type: 'Maintenance', amount: 1200, description: 'AC servicing',               time: new Date(Date.now() - 2*3600000) },
+  { id: 4, type: 'Transport',   amount: 200,  description: 'Delivery van fuel',          time: new Date(Date.now() - 1*3600000) },
+  { id: 5, type: 'Snacks',      amount: 150,  description: 'Evening snacks',             time: new Date(Date.now() - 30*60000) },
+];
+let expIdCounter = 6;
+let selectedExpType = '';
+
+const EXP_TYPE_COLORS = {
+  Snacks:      '#f59e0b',
+  Tea:         '#10b981',
+  Meals:       '#f43f5e',
+  Chanda:      '#8b5cf6',
+  Maintenance: '#64748b',
+  Transport:   '#0ea5e9',
+  Utilities:   '#eab308',
+  Others:      '#475569',
+};
+
+const EXP_TYPE_ICONS = {
+  Snacks:      'fa-cookie-bite',
+  Tea:         'fa-mug-hot',
+  Meals:       'fa-utensils',
+  Chanda:      'fa-hand-holding-heart',
+  Maintenance: 'fa-tools',
+  Transport:   'fa-truck',
+  Utilities:   'fa-bolt',
+  Others:      'fa-ellipsis-h',
+};
+
+function selectExpType(btn) {
+  document.querySelectorAll('.exp-type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedExpType = btn.dataset.type;
+  document.getElementById('expType').value = selectedExpType;
+}
+
+function addExpense() {
+  const amountEl = document.getElementById('expAmount');
+  const descEl   = document.getElementById('expDescription');
+  const amount   = parseFloat(amountEl?.value);
+
+  if (!amount || amount <= 0) {
+    showToast('Enter a valid expense amount', 'error');
+    amountEl?.focus();
+    return;
+  }
+  if (!selectedExpType) {
+    showToast('Please select an expense type', 'warning');
+    return;
+  }
+
+  const exp = {
+    id: expIdCounter++,
+    type: selectedExpType,
+    amount,
+    description: descEl?.value.trim() || '',
+    time: new Date(),
+  };
+  expenses.unshift(exp);
+
+  // Reset form
+  if (amountEl) amountEl.value = '';
+  if (descEl) descEl.value = '';
+  document.querySelectorAll('.exp-type-btn').forEach(b => b.classList.remove('active'));
+  selectedExpType = '';
+  document.getElementById('expType').value = '';
+
+  renderExpenses();
+  showToast(`${exp.type} expense of ৳${exp.amount.toFixed(2)} added`, 'success');
+}
+
+function deleteExpense(id) {
+  expenses = expenses.filter(e => e.id !== id);
+  renderExpenses();
+  showToast('Expense deleted', 'info');
+}
+
+function clearAllExpenses() {
+  if (!expenses.length) return;
+  if (confirm('Clear all expense records?')) {
+    expenses = [];
+    renderExpenses();
+    showToast('All expenses cleared', 'info');
+  }
+}
+
+function renderExpenses() {
+  renderExpList();
+  renderExpChart();
+  renderExpSummary();
+}
+
+function renderExpList() {
+  const tbody = document.getElementById('expListBody');
+  if (!tbody) return;
+
+  if (!expenses.length) {
+    tbody.innerHTML = `<tr class="exp-empty-row"><td colspan="5"><div class="exp-list-empty"><i class="fas fa-inbox"></i><p>No expenses recorded yet</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = expenses.map((e, idx) => {
+    const color = EXP_TYPE_COLORS[e.type] || '#64748b';
+    const icon  = EXP_TYPE_ICONS[e.type]  || 'fa-tag';
+    const timeStr = e.time.toLocaleTimeString('en-BD', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = e.time.toLocaleDateString('en-BD', { month: 'short', day: 'numeric' });
+    return `<tr class="${idx === 0 ? 'exp-row-new' : ''}">
+      <td>
+        <span class="exp-type-chip" style="background:${color}18; color:${color}">
+          <i class="fas ${icon}"></i>${e.type}
+        </span>
+      </td>
+      <td class="exp-desc-cell" title="${e.description || '—'}">${e.description || '<span style="color:var(--text-muted)">—</span>'}</td>
+      <td class="exp-amount-cell">৳${e.amount.toFixed(2)}</td>
+      <td class="exp-time-cell">${dateStr}, ${timeStr}</td>
+      <td><button class="exp-del-btn" onclick="deleteExpense(${e.id})" title="Delete"><i class="fas fa-trash"></i></button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderExpChart() {
+  const container = document.getElementById('expBarChart');
+  if (!container) return;
+
+  if (!expenses.length) {
+    container.innerHTML = `<div class="exp-chart-empty"><i class="fas fa-chart-bar"></i><p>No expenses yet</p></div>`;
+    return;
+  }
+
+  // Aggregate by type
+  const byType = {};
+  expenses.forEach(e => {
+    byType[e.type] = (byType[e.type] || 0) + e.amount;
+  });
+
+  const sorted = Object.entries(byType).sort((a, b) => b[1] - a[1]);
+  const maxVal = sorted[0][1];
+
+  container.innerHTML = sorted.map(([type, total], idx) => {
+    const color  = EXP_TYPE_COLORS[type] || '#64748b';
+    const icon   = EXP_TYPE_ICONS[type]  || 'fa-tag';
+    const pct    = Math.max(8, Math.round((total / maxVal) * 100));
+    const delay  = idx * 0.07;
+    return `<div class="exp-chart-row" style="animation-delay:${delay}s">
+      <div class="exp-bar-label">
+        <i class="fas ${icon}" style="color:${color}"></i>${type}
+      </div>
+      <div class="exp-bar-track">
+        <div class="exp-bar-fill animate" style="width:${pct}%; background:${color}; animation-delay:${delay}s">
+          ${pct > 20 ? `৳${total.toFixed(0)}` : ''}
+        </div>
+      </div>
+      <div class="exp-bar-amount">৳${total.toFixed(0)}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderExpSummary() {
+  const now   = new Date();
+  const today = now.toDateString();
+  const month = now.getMonth();
+  const year  = now.getFullYear();
+
+  const todayTotal = expenses
+    .filter(e => new Date(e.time).toDateString() === today)
+    .reduce((s, e) => s + e.amount, 0);
+
+  const monthTotal = expenses
+    .filter(e => { const d = new Date(e.time); return d.getMonth() === month && d.getFullYear() === year; })
+    .reduce((s, e) => s + e.amount, 0);
+
+  const elToday = document.getElementById('expTodayTotal');
+  const elMonth = document.getElementById('expMonthTotal');
+  const elCount = document.getElementById('expRecordCount');
+  const elBadge = document.getElementById('expTotalBadge');
+
+  if (elToday) elToday.textContent = `৳${todayTotal.toFixed(2)}`;
+  if (elMonth) elMonth.textContent = `৳${monthTotal.toFixed(2)}`;
+  if (elCount) elCount.textContent  = expenses.length;
+  if (elBadge) elBadge.textContent  = `৳${monthTotal.toFixed(2)}`;
+}
+
+// Hook into switchTab to render expenses on tab open
+const _origSwitchTab = switchTab;
+switchTab = function(tabName, el) {
+  _origSwitchTab(tabName, el);
+  if (tabName === 'expenses') renderExpenses();
+};
+
+// Also hook statement to show expenses
+const _origRenderStatement = renderStatementTransactions;
+renderStatementTransactions = function() {
+  _origRenderStatement();
+  // Inject expense total into statement footer if element exists
+  const expTotal = expenses.reduce((s, e) => s + e.amount, 0);
+  const txnTotal = allTransactions.reduce((s, t) => s + t.total, 0);
+  const netProfit = txnTotal - expTotal;
+
+  // Update statement summary cards dynamically
+  const expRow = document.getElementById('statementExpenseRow');
+  if (expRow) {
+    expRow.textContent = `৳${expTotal.toFixed(2)}`;
+  }
+  const netRow = document.getElementById('statementNetProfit');
+  if (netRow) {
+    netRow.textContent = `৳${Math.max(0, netProfit).toFixed(2)}`;
+  }
+};
+
+// Initialize expenses on load
+document.addEventListener('DOMContentLoaded', () => {
+  renderExpenses();
+});
