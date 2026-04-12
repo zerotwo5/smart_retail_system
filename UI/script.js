@@ -527,7 +527,29 @@ function closeReceiptModal() {
 }
 
 function printReceipt() {
-  window.print();
+  const area = document.getElementById('receiptPrintArea');
+  if (!area) return;
+  _iframePrint(`
+    <!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      * { margin:0; padding:0; box-sizing:border-box; }
+      body { font-family:'DM Sans',sans-serif; color:#111; padding:20px; width:80mm; }
+      .store-logo { font-size:28px; color:#6366f1; text-align:center; margin-bottom:6px; }
+      h4 { font-size:16px; font-weight:700; text-align:center; }
+      p  { font-size:11px; color:#555; text-align:center; line-height:1.5; }
+      .receipt-divider { text-align:center; color:#aaa; margin:8px 0; font-size:11px; letter-spacing:2px; }
+      .receipt-meta { display:flex; justify-content:space-between; font-size:11px; color:#555; margin:4px 0; }
+      .receipt-customer-info { font-size:11px; color:#555; margin:4px 0; }
+      .receipt-item { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px dashed #ddd; font-size:12px; }
+      .receipt-total { font-size:18px; font-weight:800; text-align:center; margin:10px 0 4px; color:#6366f1; }
+      .receipt-payment { font-size:11px; color:#888; text-align:center; margin-bottom:10px; }
+      .receipt-thanks { font-size:13px; font-weight:600; text-align:center; margin-bottom:2px; }
+      .receipt-thanks-en { font-size:11px; color:#888; text-align:center; }
+    </style>
+    </head><body>${area.innerHTML}</body></html>
+  `);
 }
 
 function printStatement() {
@@ -775,6 +797,33 @@ function toggleTheme() {
 // ============================================================
 //   TOAST NOTIFICATIONS
 // ============================================================
+// ── iframe-based print (no blank page issue) ──────────────
+function _iframePrint(htmlContent) {
+  // Remove any existing print iframe
+  const old = document.getElementById('__printIframe');
+  if (old) old.remove();
+
+  const iframe = document.createElement('iframe');
+  iframe.id = '__printIframe';
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(htmlContent);
+  doc.close();
+
+  // Wait for fonts/images to load then print
+  iframe.contentWindow.onload = function() {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  };
+  // Fallback if onload already fired
+  setTimeout(() => {
+    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) {}
+  }, 600);
+}
+
 function showToast(message, type = 'info') {
   const container = document.getElementById('toastContainer');
   if (!container) return;
@@ -2037,7 +2086,41 @@ function closePrintPreview() {
 }
 
 function executePrint() {
-  window.print();
+  const sheet = document.getElementById('printSheet');
+  if (!sheet) { window.print(); return; }
+  _iframePrint(`
+    <!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+      * { margin:0; padding:0; box-sizing:border-box; }
+      body { font-family:'DM Sans',sans-serif; color:#111; padding:14mm 12mm; }
+      .ps-header { text-align:center; margin-bottom:16px; padding-bottom:12px; border-bottom:2px solid #e2e8f0; }
+      .ps-store-icon { font-size:26px; color:#6366f1; margin-bottom:4px; }
+      .ps-store-name { font-size:20px; font-weight:800; color:#0f172a; font-family:'Outfit',sans-serif; }
+      .ps-store-sub  { font-size:10px; color:#64748b; margin-top:2px; }
+      .ps-period-tag { display:inline-block; margin-top:7px; background:#eef2ff; color:#6366f1; padding:2px 12px; border-radius:20px; font-size:10px; font-weight:700; }
+      .ps-kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:14px 0; }
+      .ps-kpi { border-radius:7px; padding:9px 10px; color:white; text-align:center; }
+      .ps-kpi span   { font-size:9px; opacity:.85; display:block; }
+      .ps-kpi strong { font-size:15px; font-weight:800; display:block; margin-top:2px; }
+      .ps-kpi.blue   { background:linear-gradient(135deg,#6366f1,#818cf8); }
+      .ps-kpi.green  { background:linear-gradient(135deg,#10b981,#34d399); }
+      .ps-kpi.red    { background:linear-gradient(135deg,#f43f5e,#fb7185); }
+      .ps-kpi.purple { background:linear-gradient(135deg,#8b5cf6,#a78bfa); }
+      .ps-section-title { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; color:#475569; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin:12px 0 6px; }
+      .ps-table { width:100%; border-collapse:collapse; margin-bottom:4px; }
+      .ps-table th { background:#f8fafc; padding:6px 8px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#64748b; border-bottom:1px solid #e2e8f0; text-align:left; }
+      .ps-table td { padding:6px 8px; font-size:10px; border-bottom:1px solid #f1f5f9; }
+      .ps-table tr:last-child td { border-bottom:none; }
+      .ps-amt { font-weight:700; text-align:right; }
+      .ps-totals-box { margin-top:12px; background:#f8fafc; border-radius:7px; padding:10px 12px; border:1px solid #e2e8f0; }
+      .ps-total-row { display:flex; justify-content:space-between; font-size:11px; padding:3px 0; border-bottom:1px dashed #e2e8f0; color:#475569; }
+      .ps-total-row:last-child { border-bottom:none; font-weight:800; font-size:13px; color:#0f172a; padding-top:7px; }
+      .ps-footer { margin-top:16px; text-align:center; color:#94a3b8; font-size:9px; }
+    </style>
+    </head><body>${sheet.innerHTML}</body></html>
+  `);
 }
 
 // ── Init: build selector + seed demo data ─────────────── //
@@ -2391,7 +2474,41 @@ function closePrintPreview() {
 }
 
 function executePrint() {
-  window.print();
+  const sheet = document.getElementById('printSheet');
+  if (!sheet) { window.print(); return; }
+  _iframePrint(`
+    <!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+      * { margin:0; padding:0; box-sizing:border-box; }
+      body { font-family:'DM Sans',sans-serif; color:#111; padding:14mm 12mm; }
+      .ps-header { text-align:center; margin-bottom:16px; padding-bottom:12px; border-bottom:2px solid #e2e8f0; }
+      .ps-store-icon { font-size:26px; color:#6366f1; margin-bottom:4px; }
+      .ps-store-name { font-size:20px; font-weight:800; color:#0f172a; font-family:'Outfit',sans-serif; }
+      .ps-store-sub  { font-size:10px; color:#64748b; margin-top:2px; }
+      .ps-period-tag { display:inline-block; margin-top:7px; background:#eef2ff; color:#6366f1; padding:2px 12px; border-radius:20px; font-size:10px; font-weight:700; }
+      .ps-kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:14px 0; }
+      .ps-kpi { border-radius:7px; padding:9px 10px; color:white; text-align:center; }
+      .ps-kpi span   { font-size:9px; opacity:.85; display:block; }
+      .ps-kpi strong { font-size:15px; font-weight:800; display:block; margin-top:2px; }
+      .ps-kpi.blue   { background:linear-gradient(135deg,#6366f1,#818cf8); }
+      .ps-kpi.green  { background:linear-gradient(135deg,#10b981,#34d399); }
+      .ps-kpi.red    { background:linear-gradient(135deg,#f43f5e,#fb7185); }
+      .ps-kpi.purple { background:linear-gradient(135deg,#8b5cf6,#a78bfa); }
+      .ps-section-title { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; color:#475569; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin:12px 0 6px; }
+      .ps-table { width:100%; border-collapse:collapse; margin-bottom:4px; }
+      .ps-table th { background:#f8fafc; padding:6px 8px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#64748b; border-bottom:1px solid #e2e8f0; text-align:left; }
+      .ps-table td { padding:6px 8px; font-size:10px; border-bottom:1px solid #f1f5f9; }
+      .ps-table tr:last-child td { border-bottom:none; }
+      .ps-amt { font-weight:700; text-align:right; }
+      .ps-totals-box { margin-top:12px; background:#f8fafc; border-radius:7px; padding:10px 12px; border:1px solid #e2e8f0; }
+      .ps-total-row { display:flex; justify-content:space-between; font-size:11px; padding:3px 0; border-bottom:1px dashed #e2e8f0; color:#475569; }
+      .ps-total-row:last-child { border-bottom:none; font-weight:800; font-size:13px; color:#0f172a; padding-top:7px; }
+      .ps-footer { margin-top:16px; text-align:center; color:#94a3b8; font-size:9px; }
+    </style>
+    </head><body>${sheet.innerHTML}</body></html>
+  `);
 }
 
 // Override downloadStatement to also open preview
