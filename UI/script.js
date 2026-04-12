@@ -1659,3 +1659,742 @@ document.addEventListener('DOMContentLoaded', () => {
   renderStatement();
   updateInvoiceNumber();
 });
+
+// ============================================================
+//   STATEMENT MONTH SELECTOR — Dynamic month options
+// ============================================================
+
+function buildMonthSelector() {
+  const sel = document.getElementById('statementMonth');
+  if (!sel) return;
+
+  const now = new Date();
+  const months = [];
+
+  // Generate last 12 months
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleDateString('en-BD', { month: 'long', year: 'numeric' });
+    months.push({ val, label, isCurrentMonth: i === 0 });
+  }
+
+  sel.innerHTML = months.map(m =>
+    `<option value="${m.val}"${m.isCurrentMonth ? ' selected' : ''}>${m.label}</option>`
+  ).join('');
+}
+
+// Override renderStatement to handle YYYY-MM format
+const __addonRenderStatement = renderStatement;
+renderStatement = function() {
+  const filter = document.getElementById('statementMonth')?.value || '';
+  const now = new Date();
+
+  // If value is YYYY-MM format, filter by that month/year
+  const isMonthFilter = /^\d{4}-\d{2}$/.test(filter);
+
+  if (isMonthFilter) {
+    const [yr, mo] = filter.split('-').map(Number);
+
+    // Temporarily patch inRange by overriding allTransactions filter inline
+    _renderStatementForMonth(yr, mo - 1); // month is 0-indexed
+  } else {
+    __addonRenderStatement();
+  }
+};
+
+function _renderStatementForMonth(year, month) {
+  function inRange(date) {
+    const d = new Date(date);
+    return d.getMonth() === month && d.getFullYear() === year;
+  }
+
+  const fTxns  = allTransactions.filter(t => inRange(t.time));
+  const fExps  = expenses.filter(e => inRange(e.time));
+  const active = duesData.filter(d => !d.paid);
+  const fPaidDues = duesData.filter(d => d.paid && d.paidDate && inRange(d.paidDate));
+
+  const totalRev  = fTxns.reduce((s, t) => s + t.total, 0);
+  const totalExp  = fExps.reduce((s, e) => s + e.amount, 0);
+  const totalDues = active.reduce((s, d) => s + d.amount, 0);
+  const grossProfit = fTxns.reduce((s, t) =>
+    s + t.items.reduce((ps, item) => {
+      const p  = products.find(x => x.name === item.name);
+      const pp = p?.purchasePrice || (p?.price || 0) * 0.75;
+      return ps + ((item.price || 0) - pp) * item.qty;
+    }, 0), 0);
+  const netProfit = grossProfit - totalExp;
+  const margin = totalRev > 0 ? (netProfit / totalRev * 100) : 0;
+
+  _set('stmtRevenue',    `৳${_fmt(totalRev)}`);
+  _set('stmtRevenueNote',`${fTxns.length} transactions`);
+  _set('stmtExpenses',   `৳${_fmt(totalExp)}`);
+  _set('stmtExpNote',    `${fExps.length} records`);
+  _set('stmtDues',       `৳${_fmt(totalDues)}`);
+  _set('stmtDueNote',    `${active.length} active`);
+  _set('stmtNetProfit',  `৳${_fmt(netProfit)}`);
+  _set('stmtMarginNote', netProfit >= 0 ? 'After all deductions' : 'Net loss');
+  _set('stmtMargin',     `${margin.toFixed(1)}%`);
+  _set('stmtMarginSub',  'vs revenue');
+
+  // Bar chart by week-of-month
+  const sGroups = {}, eGroups = {};
+  fTxns.forEach(t => { const k = `Wk${Math.ceil(new Date(t.time).getDate()/7)}`; sGroups[k] = (sGroups[k]||0) + t.total; });
+  fExps.forEach(e => { const k = `Wk${Math.ceil(new Date(e.time).getDate()/7)}`; eGroups[k] = (eGroups[k]||0) + e.amount; });
+  const labels = [...new Set([...Object.keys(sGroups), ...Object.keys(eGroups)])].sort();
+  const maxV   = Math.max(...labels.map(l => Math.max(sGroups[l]||0, eGroups[l]||0)), 1);
+
+  const barArea = document.getElementById('stmtBarChartArea');
+  if (barArea) {
+    if (!labels.length) {
+      barArea.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:160px;color:var(--text-muted);font-size:13px"><i class="fas fa-chart-bar" style="margin-right:8px;opacity:.4"></i>No data for this period</div>`;
+    } else {
+      const ySteps = [maxV, maxV*.75, maxV*.5, maxV*.25, 0].map(v => v>=1000?`৳${(v/1000).toFixed(0)}k`:`৳${v.toFixed(0)}`);
+      barArea.innerHTML = `<div class="chart-area" style="height:170px">
+        <div class="chart-y-labels">${ySteps.map(l=>`<span>${l}</span>`).join('')}</div>
+        <div class="chart-bars-wrap">
+          ${labels.map((lbl,i) => {
+            const sh=Math.round(((sGroups[lbl]||0)/maxV)*100);
+            const eh=Math.round(((eGroups[lbl]||0)/maxV)*100);
+            return `<div class="chart-bar-group" style="animation-delay:${i*0.07}s">
+              <div class="bar-pair">
+                <div class="bar sales-bar" style="--h:${sh}%;animation-delay:${i*0.07}s"></div>
+                <div class="bar expense-bar" style="--h:${eh}%;animation-delay:${i*0.07+0.03}s"></div>
+              </div><span>${lbl}</span></div>`;
+          }).join('')}
+        </div></div>`;
+    }
+  }
+
+  // Pie charts
+  const payData={};
+  fTxns.forEach(t => { payData[t.method] = (payData[t.method]||0) + t.total; });
+  drawPieChart('stmtPieCanvas', Object.entries(payData).filter(([,v])=>v>0).map(([k,v])=>({label:k[0].toUpperCase()+k.slice(1),value:v}))||[{label:'No data',value:1}], 'stmtPieLegend');
+  const expData={};
+  fExps.forEach(e => { expData[e.type] = (expData[e.type]||0) + e.amount; });
+  drawPieChart('stmtExpPieCanvas', Object.entries(expData).filter(([,v])=>v>0).map(([k,v])=>({label:k,value:v}))||[{label:'No data',value:1}], 'stmtExpPieLegend');
+
+  // Tables
+  const txnList = document.getElementById('stmtTxnList');
+  if (txnList) {
+    _set('stmtTxnCount', `${fTxns.length} records`);
+    _set('stmtTxnTotal', `৳${totalRev.toFixed(2)}`);
+    txnList.innerHTML = fTxns.slice().reverse().map(t=>`
+      <div class="txn-detail-item">
+        <div class="txn-d-name"><div class="txn-d-dot ${t.method}"></div><div><div>${t.customer||'Walk-in'}</div><div style="font-size:11px;color:var(--text-muted)">${t.invoiceNo||''}</div></div></div>
+        <div class="txn-d-time">${_fmtTm(t.time)}</div>
+        <div><span class="status-badge instock" style="font-size:10px">${(t.method||'').toUpperCase()}</span></div>
+        <div class="txn-d-amount">৳${t.total.toFixed(2)}</div>
+      </div>`).join('') || `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No transactions this month</div>`;
+  }
+
+  const expList = document.getElementById('stmtExpList');
+  if (expList) {
+    _set('stmtExpCount', `${fExps.length} records`);
+    _set('stmtExpTotal', `৳${totalExp.toFixed(2)}`);
+    expList.innerHTML = fExps.slice().reverse().map(e=>{
+      const col=EXP_TYPE_COLORS[e.type]||'#64748b', ico=EXP_TYPE_ICONS[e.type]||'fa-tag';
+      return `<div class="txn-detail-item">
+        <div class="txn-d-name"><i class="fas ${ico}" style="color:${col};width:16px;flex-shrink:0"></i><div><div>${e.type}</div><div style="font-size:11px;color:var(--text-muted)">${e.description||'—'}</div></div></div>
+        <div class="txn-d-time">${_fmtTm(e.time)}</div>
+        <div><span class="exp-type-chip" style="background:${col}18;color:${col};font-size:10px">${e.type}</span></div>
+        <div class="txn-d-amount" style="color:var(--danger)">৳${e.amount.toFixed(2)}</div>
+      </div>`;
+    }).join('') || `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No expenses this month</div>`;
+  }
+
+  const duesList = document.getElementById('stmtDueList');
+  if (duesList) {
+    _set('stmtDueCount', `${active.length} active`);
+    _set('stmtDueTotal', `৳${totalDues.toFixed(2)}`);
+    duesList.innerHTML = active.slice(0, 8).map(d => {
+      const st = _getDueStatus(d), dl = _getDaysLeft(d);
+      return `<div class="txn-detail-item">
+        <div class="txn-d-name"><div class="txn-d-dot" style="background:${dl<0?'var(--danger)':'var(--warning)'}"></div><div><div style="font-weight:500">${d.name}</div><div style="font-size:11px;color:var(--text-muted)">${d.type}</div></div></div>
+        <div><span class="days-badge ${st.cls}" style="font-size:10px">${dl<0?`${Math.abs(dl)}d overdue`:`${dl}d left`}</span></div>
+        <div><span class="status-badge ${st.cls}" style="font-size:10px">${st.label}</span></div>
+        <div class="txn-d-amount" style="color:var(--warning)">৳${_fmt(d.amount)}</div>
+      </div>`;
+    }).join('') || `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No active dues</div>`;
+  }
+}
+
+// ── Demo data for previous months ──────────────────────── //
+
+function seedDemoData() {
+  const now = new Date();
+
+  // Add transactions for the last 3 months
+  const demoMonths = [1, 2, 3]; // months ago
+  const customerNames = ['Abdul Rahman','Fatema Akter','Karim Mia','Sohana Begum','Jahangir Ali','Mitu Rani','Sabbir Hossain','Nasima Khatun'];
+  const methods = ['cash','bkash','nagad','cash','cash','bkash'];
+  let demoInv = 200;
+
+  demoMonths.forEach(mAgo => {
+    const baseDate = new Date(now.getFullYear(), now.getMonth() - mAgo, 1);
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() - mAgo + 1, 0).getDate();
+    const txnCount = 18 + Math.floor(Math.random() * 15); // 18-32 transactions
+
+    for (let i = 0; i < txnCount; i++) {
+      const day   = 1 + Math.floor(Math.random() * (daysInMonth - 1));
+      const hour  = 9 + Math.floor(Math.random() * 10);
+      const tDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), day, hour, Math.floor(Math.random()*60));
+      const items = [];
+      const numItems = 1 + Math.floor(Math.random() * 3);
+      for (let j = 0; j < numItems; j++) {
+        const p = products[Math.floor(Math.random() * products.length)];
+        const qty = 1 + Math.floor(Math.random() * 4);
+        items.push({ name: p.name, price: p.salesPrice || p.price, qty, unit: p.unit });
+      }
+      const subtotal = items.reduce((s, it) => s + it.price * it.qty, 0);
+      const vat = subtotal * 0.05;
+      const total = subtotal + vat;
+      const method = methods[Math.floor(Math.random() * methods.length)];
+      const customer = customerNames[Math.floor(Math.random() * customerNames.length)];
+      allTransactions.push({
+        id: demoInv, invoiceNo: `INV-${baseDate.getFullYear()}-${String(demoInv).padStart(3,'0')}`,
+        customer, phone: '', method, items, subtotal, vat, vatPct: 5, discount: 0, total,
+        time: tDate, dueDays: 0
+      });
+      demoInv++;
+    }
+
+    // Add demo expenses for that month
+    const expTypes = ['Meals','Tea','Maintenance','Transport','Utilities','Snacks','Chanda'];
+    const expCount = 8 + Math.floor(Math.random() * 6);
+    for (let i = 0; i < expCount; i++) {
+      const day  = 1 + Math.floor(Math.random() * (daysInMonth - 1));
+      const eDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), day, 10 + Math.floor(Math.random()*8));
+      const type = expTypes[Math.floor(Math.random() * expTypes.length)];
+      const amts = { Meals:350+Math.random()*300, Tea:60+Math.random()*80, Maintenance:500+Math.random()*1500,
+        Transport:150+Math.random()*250, Utilities:800+Math.random()*400, Snacks:100+Math.random()*150, Chanda:200+Math.random()*300 };
+      expenses.push({ id: expIdCounter++, type, amount: Math.round(amts[type]), description: '', time: eDate });
+    }
+  });
+}
+
+// ── Print Preview ──────────────────────────────────────── //
+
+function openPrintPreview() {
+  const body = document.getElementById('printPreviewBody');
+  if (!body) return;
+
+  const filter = document.getElementById('statementMonth')?.value || '';
+  const isMonthFilter = /^\d{4}-\d{2}$/.test(filter);
+  let year, month, monthName, periodLabel;
+
+  if (isMonthFilter) {
+    const [yr, mo] = filter.split('-').map(Number);
+    year = yr; month = mo - 1;
+    const d = new Date(yr, mo - 1, 1);
+    monthName  = d.toLocaleDateString('en-BD', { month: 'long' });
+    periodLabel = d.toLocaleDateString('en-BD', { month: 'long', year: 'numeric' });
+  } else {
+    const now = new Date();
+    year = now.getFullYear(); month = now.getMonth();
+    monthName  = now.toLocaleDateString('en-BD', { month: 'long' });
+    periodLabel = now.toLocaleDateString('en-BD', { month: 'long', year: 'numeric' });
+  }
+
+  function inRange(date) {
+    const d = new Date(date);
+    return d.getMonth() === month && d.getFullYear() === year;
+  }
+
+  const fTxns = allTransactions.filter(t => inRange(t.time));
+  const fExps = expenses.filter(e => inRange(e.time));
+  const active = duesData.filter(d => !d.paid);
+  const fPaidDues = duesData.filter(d => d.paid && d.paidDate && inRange(d.paidDate));
+
+  const totalRev   = fTxns.reduce((s,t)=>s+t.total,0);
+  const totalExp   = fExps.reduce((s,e)=>s+e.amount,0);
+  const totalDues  = active.reduce((s,d)=>s+d.amount,0);
+  const grossP     = fTxns.reduce((s,t)=>s+t.items.reduce((ps,item)=>{
+    const p=products.find(x=>x.name===item.name);
+    return ps+((item.price||0)-(p?.purchasePrice||(p?.price||0)*0.75))*item.qty;
+  },0),0);
+  const netP   = grossP - totalExp;
+  const margin = totalRev>0?(netP/totalRev*100):0;
+  const printedAt = new Date().toLocaleDateString('en-BD',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  body.innerHTML = `
+    <div class="print-page" id="printPageContent">
+      <!-- Store Header -->
+      <div class="print-store-header">
+        <div class="print-store-brand">
+          <div class="print-store-icon"><i class="fas fa-store-alt"></i></div>
+          <div class="print-store-info">
+            <h2>SmartRetail Store</h2>
+            <p>123 Bashundhara, Dhaka, Bangladesh</p>
+            <p>Tel: 01700-000000 | smartretail.bd</p>
+          </div>
+        </div>
+        <div class="print-meta">
+          <strong>Financial Statement</strong>
+          <span>${periodLabel}</span><br>
+          <span style="font-size:11px;color:#aaa">Printed: ${printedAt}</span>
+        </div>
+      </div>
+
+      <!-- KPI Row -->
+      <div class="print-kpi-row">
+        <div class="print-kpi blue"><span>Total Revenue</span><strong>৳${_fmt(totalRev)}</strong></div>
+        <div class="print-kpi orange"><span>Total Expenses</span><strong>৳${_fmt(totalExp)}</strong></div>
+        <div class="print-kpi red"><span>Pending Dues</span><strong>৳${_fmt(totalDues)}</strong></div>
+        <div class="print-kpi green"><span>Net Profit</span><strong>৳${_fmt(netP)}</strong></div>
+        <div class="print-kpi purple"><span>Profit Margin</span><strong>${margin.toFixed(1)}%</strong></div>
+      </div>
+
+      <!-- Sales Transactions -->
+      <div class="print-section-title"><i class="fas fa-shopping-cart"></i> Sales Transactions (${fTxns.length})</div>
+      ${fTxns.length ? `
+      <table class="print-table">
+        <thead><tr><th>#</th><th>Invoice</th><th>Customer</th><th>Items</th><th>Method</th><th>Date</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>
+          ${fTxns.slice().reverse().map((t,i)=>`
+            <tr>
+              <td style="color:#aaa;font-size:11px">${i+1}</td>
+              <td style="font-size:11px;color:#6366f1;font-weight:700">${t.invoiceNo}</td>
+              <td style="font-weight:600">${t.customer||'Walk-in'}</td>
+              <td style="font-size:11px;color:#555">${t.items.map(it=>`${it.name}×${it.qty}`).join(', ')}</td>
+              <td><span class="print-badge ${t.method}">${t.method.toUpperCase()}</span></td>
+              <td style="font-size:11px;color:#555">${_fmtDt(t.time,{month:'short',day:'numeric'})}</td>
+              <td style="text-align:right;font-weight:700">৳${t.total.toFixed(2)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="print-footer-row"><span>Total Sales Revenue</span><span>৳${totalRev.toFixed(2)}</span></div>
+      ` : `<p style="color:#aaa;font-size:12px;padding:12px 0">No transactions this month.</p>`}
+
+      <!-- Expenses -->
+      <div class="print-section-title" style="margin-top:28px"><i class="fas fa-receipt"></i> Expense Records (${fExps.length})</div>
+      ${fExps.length ? `
+      <table class="print-table">
+        <thead><tr><th>#</th><th>Type</th><th>Description</th><th>Date</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>
+          ${fExps.slice().reverse().map((e,i)=>`
+            <tr>
+              <td style="color:#aaa;font-size:11px">${i+1}</td>
+              <td><span class="print-badge" style="background:#fff3cd;color:#856404">${e.type}</span></td>
+              <td style="font-size:11px;color:#555">${e.description||'—'}</td>
+              <td style="font-size:11px;color:#555">${_fmtDt(e.time,{month:'short',day:'numeric'})}</td>
+              <td style="text-align:right;font-weight:700;color:#dc2626">৳${e.amount.toFixed(2)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="print-footer-row"><span>Total Expenses</span><span style="color:#dc2626">৳${totalExp.toFixed(2)}</span></div>
+      ` : `<p style="color:#aaa;font-size:12px;padding:12px 0">No expenses this month.</p>`}
+
+      <!-- Active Dues -->
+      <div class="print-section-title" style="margin-top:28px"><i class="fas fa-wallet"></i> Active Due Accounts (${active.length})</div>
+      ${active.length ? `
+      <table class="print-table">
+        <thead><tr><th>Customer</th><th>Phone</th><th>Type</th><th>Due Date</th><th>Status</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>
+          ${active.map(d=>{
+            const st=_getDueStatus(d);
+            return `<tr>
+              <td style="font-weight:600">${d.name}</td>
+              <td style="font-size:11px;color:#555">${d.phone}</td>
+              <td style="font-size:11px">${d.type}</td>
+              <td style="font-size:11px;color:#555">${_fmtDt(_getDueDate(d))}</td>
+              <td><span class="print-badge ${st.cls==='critical'?'overdue':'due'}">${st.label}</span></td>
+              <td style="text-align:right;font-weight:700;color:#d97706">৳${_fmt(d.amount)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      <div class="print-footer-row"><span>Total Pending Dues</span><span style="color:#d97706">৳${totalDues.toFixed(2)}</span></div>
+      ` : `<p style="color:#aaa;font-size:12px;padding:12px 0">No active dues 🎉</p>`}
+
+      <!-- Summary Box -->
+      <div style="background:#f8faff;border-radius:10px;padding:18px 20px;margin-top:28px;border:1px solid #e0e7ff">
+        <div style="font-family:'Outfit',sans-serif;font-size:13px;font-weight:800;color:#6366f1;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">Financial Summary — ${periodLabel}</div>
+        <table style="width:100%;border-collapse:collapse">
+          <tr><td style="padding:5px 0;color:#555">Total Revenue</td><td style="text-align:right;font-weight:700">৳${totalRev.toFixed(2)}</td></tr>
+          <tr><td style="padding:5px 0;color:#555">Total Expenses</td><td style="text-align:right;font-weight:700;color:#dc2626">− ৳${totalExp.toFixed(2)}</td></tr>
+          <tr><td style="padding:5px 0;color:#555">Gross Profit</td><td style="text-align:right;font-weight:700">৳${grossP.toFixed(2)}</td></tr>
+          <tr style="border-top:2px solid #e0e7ff"><td style="padding:8px 0;font-weight:800;font-size:15px;color:#111">Net Profit</td><td style="text-align:right;font-weight:900;font-size:16px;font-family:'Outfit',sans-serif;color:${netP>=0?'#10b981':'#dc2626'}">৳${netP.toFixed(2)}</td></tr>
+          <tr><td style="padding:3px 0;color:#888;font-size:11px">Profit Margin</td><td style="text-align:right;font-size:11px;color:#888">${margin.toFixed(1)}% of revenue</td></tr>
+        </table>
+      </div>
+
+      <!-- Signature -->
+      <div class="print-signature-row">
+        <div class="print-sig"><div class="sig-line"></div><p>Prepared By</p></div>
+        <div class="print-sig"><div class="sig-line"></div><p>Accounts</p></div>
+        <div class="print-sig"><div class="sig-line"></div><p>Authorized Signature</p></div>
+      </div>
+
+      <div class="print-watermark">Generated by SmartRetail POS v2.0 • ${printedAt}</div>
+    </div>`;
+
+  document.getElementById('printPreviewModal').classList.add('show');
+}
+
+function closePrintPreview() {
+  document.getElementById('printPreviewModal').classList.remove('show');
+}
+
+function executePrint() {
+  window.print();
+}
+
+// ── Init: build selector + seed demo data ─────────────── //
+document.addEventListener('DOMContentLoaded', () => {
+  buildMonthSelector();
+  seedDemoData();
+  // Re-render statement after demo data seeded
+  setTimeout(() => {
+    renderStatement();
+    renderDashboard();
+  }, 50);
+});
+
+// ============================================================
+//   STATEMENT — MONTH FILTER + DEMO DATA + PRINT PREVIEW
+// ============================================================
+
+/* ── Demo historical transactions ──────────────────────── */
+(function seedDemoData() {
+  function makeDate(y, m, d, h) {
+    return new Date(y, m - 1, d, h || 10);
+  }
+
+  const demos = [
+    // March 2025
+    { customer:'Kamal Hossain', method:'cash',  time:makeDate(2025,3,5,9),  items:[{name:'Miniket Rice',price:75,qty:10,unit:'kg'},{name:'Soybean Oil',price:180,qty:3,unit:'L'}] },
+    { customer:'Sumaiya Akter', method:'bkash', time:makeDate(2025,3,8,11), items:[{name:'Milk Powder',price:450,qty:2,unit:'pcs'},{name:'Ceylon Tea',price:380,qty:1,unit:'kg'}] },
+    { customer:'Walk-in',       method:'cash',  time:makeDate(2025,3,12,14),items:[{name:'Red Lentils',price:130,qty:5,unit:'kg'},{name:'Iodized Salt',price:40,qty:3,unit:'kg'}] },
+    { customer:'Farhan Kabir',  method:'nagad', time:makeDate(2025,3,18,10),items:[{name:'Atta Flour',price:45,qty:20,unit:'kg'},{name:'Premium Sugar',price:120,qty:5,unit:'kg'}] },
+    { customer:'Walk-in',       method:'cash',  time:makeDate(2025,3,22,15),items:[{name:'Chickpeas',price:110,qty:8,unit:'kg'},{name:'Chinigura Rice',price:95,qty:10,unit:'kg'}] },
+    { customer:'Rokeya Begum',  method:'due',   time:makeDate(2025,3,28,9), items:[{name:'Miniket Rice',price:75,qty:25,unit:'kg'},{name:'Soybean Oil',price:180,qty:5,unit:'L'}] },
+
+    // February 2025
+    { customer:'Walk-in',       method:'cash',  time:makeDate(2025,2,3,10), items:[{name:'Ceylon Tea',price:380,qty:2,unit:'kg'},{name:'Milk Powder',price:450,qty:1,unit:'pcs'}] },
+    { customer:'Habib Mia',     method:'bkash', time:makeDate(2025,2,10,13),items:[{name:'Miniket Rice',price:75,qty:15,unit:'kg'},{name:'Premium Sugar',price:120,qty:8,unit:'kg'}] },
+    { customer:'Walk-in',       method:'cash',  time:makeDate(2025,2,15,11),items:[{name:'Red Lentils',price:130,qty:10,unit:'kg'}] },
+    { customer:'Nasima Khatun', method:'cash',  time:makeDate(2025,2,20,14),items:[{name:'Atta Flour',price:45,qty:15,unit:'kg'},{name:'Iodized Salt',price:40,qty:5,unit:'kg'}] },
+    { customer:'Walk-in',       method:'nagad', time:makeDate(2025,2,25,16),items:[{name:'Soybean Oil',price:180,qty:4,unit:'L'},{name:'Chickpeas',price:110,qty:6,unit:'kg'}] },
+
+    // January 2025
+    { customer:'Jahangir Alam', method:'cash',  time:makeDate(2025,1,4,9),  items:[{name:'Miniket Rice',price:75,qty:20,unit:'kg'},{name:'Soybean Oil',price:180,qty:6,unit:'L'}] },
+    { customer:'Walk-in',       method:'bkash', time:makeDate(2025,1,9,12), items:[{name:'Milk Powder',price:450,qty:3,unit:'pcs'},{name:'Ceylon Tea',price:380,qty:1,unit:'kg'}] },
+    { customer:'Shirin Akter',  method:'cash',  time:makeDate(2025,1,14,10),items:[{name:'Red Lentils',price:130,qty:8,unit:'kg'},{name:'Chickpeas',price:110,qty:5,unit:'kg'}] },
+    { customer:'Walk-in',       method:'cash',  time:makeDate(2025,1,20,15),items:[{name:'Atta Flour',price:45,qty:10,unit:'kg'},{name:'Premium Sugar',price:120,qty:6,unit:'kg'}] },
+    { customer:'Rahim Uddin',   method:'nagad', time:makeDate(2025,1,26,11),items:[{name:'Chinigura Rice',price:95,qty:15,unit:'kg'},{name:'Iodized Salt',price:40,qty:4,unit:'kg'}] },
+
+    // December 2024
+    { customer:'Walk-in',       method:'cash',  time:makeDate(2024,12,5,9), items:[{name:'Miniket Rice',price:75,qty:30,unit:'kg'},{name:'Soybean Oil',price:180,qty:8,unit:'L'}] },
+    { customer:'Lutfur Rahman', method:'bkash', time:makeDate(2024,12,12,14),items:[{name:'Milk Powder',price:450,qty:4,unit:'pcs'},{name:'Premium Sugar',price:120,qty:10,unit:'kg'}] },
+    { customer:'Walk-in',       method:'cash',  time:makeDate(2024,12,18,11),items:[{name:'Red Lentils',price:130,qty:12,unit:'kg'},{name:'Chickpeas',price:110,qty:8,unit:'kg'}] },
+    { customer:'Momena Begum',  method:'cash',  time:makeDate(2024,12,24,10),items:[{name:'Ceylon Tea',price:380,qty:2,unit:'kg'},{name:'Chinigura Rice',price:95,qty:20,unit:'kg'}] },
+    { customer:'Walk-in',       method:'nagad', time:makeDate(2024,12,30,15),items:[{name:'Atta Flour',price:45,qty:25,unit:'kg'},{name:'Iodized Salt',price:40,qty:6,unit:'kg'}] },
+  ];
+
+  const demoExps = [
+    { type:'Meals',       amount:850,  description:'Staff lunch — March',     time:makeDate(2025,3,10,12)  },
+    { type:'Transport',   amount:400,  description:'Delivery van — March',    time:makeDate(2025,3,15,10)  },
+    { type:'Maintenance', amount:1500, description:'Shop repairs — March',    time:makeDate(2025,3,20,14)  },
+    { type:'Tea',         amount:240,  description:'Daily tea — Feb',         time:makeDate(2025,2,14,10)  },
+    { type:'Chanda',      amount:500,  description:'Local committee — Feb',   time:makeDate(2025,2,18,11)  },
+    { type:'Utilities',   amount:1200, description:'Electricity — Feb',       time:makeDate(2025,2,25,15)  },
+    { type:'Meals',       amount:900,  description:'Staff lunch — Jan',       time:makeDate(2025,1,10,12)  },
+    { type:'Maintenance', amount:2000, description:'AC repair — Jan',         time:makeDate(2025,1,22,14)  },
+    { type:'Transport',   amount:350,  description:'Delivery fuel — Jan',     time:makeDate(2025,1,28,10)  },
+    { type:'Meals',       amount:1100, description:'Staff lunch — Dec',       time:makeDate(2024,12,14,12) },
+    { type:'Utilities',   amount:1400, description:'Electricity — Dec',       time:makeDate(2024,12,20,15) },
+    { type:'Maintenance', amount:800,  description:'Paint & cleaning — Dec',  time:makeDate(2024,12,28,11) },
+  ];
+
+  let seedInvoice = 100;
+  demos.forEach(d => {
+    const subtotal = d.items.reduce((s, i) => s + i.price * i.qty, 0);
+    const vat      = subtotal * 0.05;
+    allTransactions.push({
+      id: seedInvoice,
+      invoiceNo: `INV-DEMO-${seedInvoice}`,
+      customer: d.customer,
+      phone: '',
+      method: d.method,
+      items: d.items,
+      subtotal, vat, vatPct: 5, discount: 0,
+      total: subtotal + vat,
+      time: d.time,
+    });
+    seedInvoice++;
+  });
+
+  let seedExpId = 100;
+  demoExps.forEach(e => {
+    expenses.push({ id: seedExpId++, ...e });
+  });
+})();
+
+/* ── renderStatement override with month filter ─────────── */
+renderStatement = function() {
+  const sel    = document.getElementById('statementMonth');
+  const filter = sel?.value || '2025-04';
+  const label  = sel?.options[sel.selectedIndex]?.text || '';
+
+  function inRange(date) {
+    const d  = new Date(date);
+    const [fy, fm] = filter.split('-').map(Number);
+    return d.getFullYear() === fy && d.getMonth() === fm - 1;
+  }
+
+  const fTxns  = allTransactions.filter(t => inRange(t.time));
+  const fExps  = expenses.filter(e => inRange(e.time));
+  const active = duesData.filter(d => !d.paid);
+
+  const totalRev    = fTxns.reduce((s, t) => s + t.total,  0);
+  const totalExp    = fExps.reduce((s, e) => s + e.amount, 0);
+  const totalDues   = active.reduce((s, d) => s + d.amount, 0);
+  const grossProfit = fTxns.reduce((s, t) =>
+    s + t.items.reduce((ps, item) => {
+      const p  = products.find(x => x.name === item.name);
+      const pp = p?.purchasePrice || (p?.price || 0) * 0.75;
+      return ps + ((item.price || 0) - pp) * item.qty;
+    }, 0), 0);
+  const netProfit = grossProfit - totalExp;
+  const margin    = totalRev > 0 ? (netProfit / totalRev * 100) : 0;
+
+  const _s = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  _s('stmtRevenue',    `৳${Number(totalRev).toLocaleString('en-IN',{maximumFractionDigits:0})}`);
+  _s('stmtRevenueNote',`${fTxns.length} transactions`);
+  _s('stmtExpenses',   `৳${Number(totalExp).toLocaleString('en-IN',{maximumFractionDigits:0})}`);
+  _s('stmtExpNote',    `${fExps.length} records`);
+  _s('stmtDues',       `৳${Number(totalDues).toLocaleString('en-IN',{maximumFractionDigits:0})}`);
+  _s('stmtDueNote',    `${active.length} active`);
+  _s('stmtNetProfit',  `৳${Number(netProfit).toLocaleString('en-IN',{maximumFractionDigits:0})}`);
+  _s('stmtMarginNote', netProfit >= 0 ? 'After all deductions' : 'Net loss');
+  _s('stmtMargin',     `${margin.toFixed(1)}%`);
+  _s('stmtMarginSub',  'vs revenue');
+
+  // Bar chart — group by week within month
+  const weekGroup = (date) => `Wk${Math.ceil(new Date(date).getDate() / 7)}`;
+  const sGrp = {}, eGrp = {};
+  fTxns.forEach(t => { const k=weekGroup(t.time); sGrp[k]=(sGrp[k]||0)+t.total; });
+  fExps.forEach(e => { const k=weekGroup(e.time); eGrp[k]=(eGrp[k]||0)+e.amount; });
+  const labels = [...new Set([...Object.keys(sGrp),...Object.keys(eGrp)])].sort();
+  const maxV   = Math.max(...labels.map(l => Math.max(sGrp[l]||0, eGrp[l]||0)), 1);
+  const barArea = document.getElementById('stmtBarChartArea');
+  if (barArea) {
+    if (!labels.length) {
+      barArea.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:150px;color:var(--text-muted);font-size:13px"><i class="fas fa-chart-bar" style="margin-right:8px;opacity:.4"></i>No data for ${label}</div>`;
+    } else {
+      const ySteps = [maxV, maxV*0.75, maxV*0.5, maxV*0.25, 0]
+        .map(v => v >= 1000 ? `৳${(v/1000).toFixed(0)}k` : `৳${v.toFixed(0)}`);
+      barArea.innerHTML = `
+        <div class="chart-area" style="height:170px">
+          <div class="chart-y-labels">${ySteps.map(l=>`<span>${l}</span>`).join('')}</div>
+          <div class="chart-bars-wrap">
+            ${labels.map((lbl,i) => {
+              const sh = Math.round(((sGrp[lbl]||0)/maxV)*100);
+              const eh = Math.round(((eGrp[lbl]||0)/maxV)*100);
+              return `<div class="chart-bar-group" style="animation-delay:${i*0.07}s">
+                <div class="bar-pair">
+                  <div class="bar sales-bar"   style="--h:${sh}%;animation-delay:${i*0.07}s"></div>
+                  <div class="bar expense-bar" style="--h:${sh>0?eh:0}%;animation-delay:${i*0.1}s"></div>
+                </div>
+                <span>${lbl}</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }
+  }
+
+  // Pies
+  const payMap = {}, expMap = {};
+  fTxns.forEach(t => { payMap[t.method] = (payMap[t.method]||0) + t.total; });
+  fExps.forEach(e => { expMap[e.type]   = (expMap[e.type]  ||0) + e.amount; });
+  const toPie = obj => Object.entries(obj).filter(([,v])=>v>0).map(([k,v]) => ({
+    label: k.charAt(0).toUpperCase()+k.slice(1), value: v
+  }));
+  drawPieChart('stmtPieCanvas',    toPie(payMap).length ? toPie(payMap) : [{label:'No sales',value:1}],    'stmtPieLegend');
+  drawPieChart('stmtExpPieCanvas', toPie(expMap).length ? toPie(expMap) : [{label:'No expenses',value:1}], 'stmtExpPieLegend');
+
+  // Sales list
+  const txnList = document.getElementById('stmtTxnList');
+  if (txnList) {
+    _s('stmtTxnCount', `${fTxns.length} records`);
+    _s('stmtTxnTotal', `৳${totalRev.toFixed(2)}`);
+    txnList.innerHTML = fTxns.slice().reverse().map(t => `
+      <div class="txn-detail-item">
+        <div class="txn-d-name">
+          <div class="txn-d-dot ${t.method}"></div>
+          <div><div>${t.customer||'Walk-in'}</div><div style="font-size:11px;color:var(--text-muted)">${t.invoiceNo||''}</div></div>
+        </div>
+        <div class="txn-d-time">${new Date(t.time).toLocaleDateString('en-BD',{month:'short',day:'numeric'})}</div>
+        <div><span class="status-badge instock" style="font-size:10px">${(t.method||'').toUpperCase()}</span></div>
+        <div class="txn-d-amount">৳${t.total.toFixed(2)}</div>
+      </div>`).join('') || `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No transactions for ${label}</div>`;
+  }
+
+  // Expense list
+  const expList = document.getElementById('stmtExpList');
+  if (expList) {
+    _s('stmtExpCount', `${fExps.length} records`);
+    _s('stmtExpTotal', `৳${totalExp.toFixed(2)}`);
+    const cols = EXP_TYPE_COLORS || {};
+    const icos = EXP_TYPE_ICONS  || {};
+    expList.innerHTML = fExps.slice().reverse().map(e => {
+      const col = cols[e.type] || '#64748b';
+      const ico = icos[e.type] || 'fa-tag';
+      return `<div class="txn-detail-item">
+        <div class="txn-d-name">
+          <i class="fas ${ico}" style="color:${col};width:16px;flex-shrink:0"></i>
+          <div><div>${e.type}</div><div style="font-size:11px;color:var(--text-muted)">${e.description||'—'}</div></div>
+        </div>
+        <div class="txn-d-time">${new Date(e.time).toLocaleDateString('en-BD',{month:'short',day:'numeric'})}</div>
+        <div><span class="exp-type-chip" style="background:${col}18;color:${col};font-size:10px">${e.type}</span></div>
+        <div class="txn-d-amount" style="color:var(--danger)">৳${e.amount.toFixed(2)}</div>
+      </div>`;
+    }).join('') || `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No expenses for ${label}</div>`;
+  }
+
+  // Dues list
+  const duesList = document.getElementById('stmtDueList');
+  if (duesList) {
+    _s('stmtDueCount', `${active.length} active`);
+    _s('stmtDueTotal', `৳${totalDues.toFixed(2)}`);
+    duesList.innerHTML = active.slice(0, 8).map(d => {
+      const dl  = Math.ceil((_getDueDate ? _getDueDate(d) : new Date(d.addedDate.getTime()+d.period*86400000)) - new Date()) / 86400000;
+      const dlR = Math.ceil(dl);
+      const dlabel = dlR < 0 ? `${Math.abs(dlR)}d overdue` : `${dlR}d left`;
+      const cls  = dlR < -5 ? 'critical' : dlR < 0 ? 'overdue' : 'pending';
+      return `<div class="txn-detail-item">
+        <div class="txn-d-name">
+          <div class="txn-d-dot" style="background:${dlR<0?'var(--danger)':'var(--warning)'}"></div>
+          <div><div style="font-weight:500">${d.name}</div><div style="font-size:11px;color:var(--text-muted)">${d.type}</div></div>
+        </div>
+        <div><span class="days-badge ${cls}" style="font-size:10px">${dlabel}</span></div>
+        <div><span class="status-badge ${cls}" style="font-size:10px">${cls.charAt(0).toUpperCase()+cls.slice(1)}</span></div>
+        <div class="txn-d-amount" style="color:var(--warning)">৳${Number(d.amount).toLocaleString()}</div>
+      </div>`;
+    }).join('') || `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No active dues</div>`;
+  }
+};
+
+/* ── Print Preview Functions ────────────────────────────── */
+function printStatement() {
+  const sel    = document.getElementById('statementMonth');
+  const filter = sel?.value || '2025-04';
+  const label  = sel?.options[sel.selectedIndex]?.text || 'Statement';
+
+  function inRange(date) {
+    const d  = new Date(date);
+    const [fy, fm] = filter.split('-').map(Number);
+    return d.getFullYear() === fy && d.getMonth() === fm - 1;
+  }
+
+  const fTxns = allTransactions.filter(t => inRange(t.time));
+  const fExps = expenses.filter(e => inRange(e.time));
+  const active = duesData.filter(d => !d.paid);
+
+  const totalRev  = fTxns.reduce((s, t) => s + t.total,  0);
+  const totalExp  = fExps.reduce((s, e) => s + e.amount, 0);
+  const totalDues = active.reduce((s, d) => s + d.amount, 0);
+  const grossP    = fTxns.reduce((s, t) =>
+    s + t.items.reduce((ps, item) => {
+      const p  = products.find(x => x.name === item.name);
+      const pp = p?.purchasePrice || (p?.price||0) * 0.75;
+      return ps + ((item.price||0) - pp) * item.qty;
+    }, 0), 0);
+  const netProfit = grossP - totalExp;
+  const margin    = totalRev > 0 ? (netProfit / totalRev * 100) : 0;
+  const fmt       = n => Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+
+  // Build print sheet HTML
+  const txnRows = fTxns.map(t => `
+    <tr>
+      <td>${t.invoiceNo || '—'}</td>
+      <td>${t.customer || 'Walk-in'}</td>
+      <td>${new Date(t.time).toLocaleDateString('en-BD',{month:'short',day:'numeric'})}</td>
+      <td><span style="text-transform:uppercase;font-size:10px;font-weight:700;color:#6366f1">${t.method}</span></td>
+      <td class="ps-amt">৳${t.total.toFixed(2)}</td>
+    </tr>`).join('');
+
+  const expRows = fExps.map(e => `
+    <tr>
+      <td>${e.type}</td>
+      <td>${e.description || '—'}</td>
+      <td>${new Date(e.time).toLocaleDateString('en-BD',{month:'short',day:'numeric'})}</td>
+      <td class="ps-amt" style="color:#f43f5e">৳${e.amount.toFixed(2)}</td>
+    </tr>`).join('');
+
+  const dueRows = active.slice(0, 10).map(d => `
+    <tr>
+      <td>${d.name}</td>
+      <td>${d.phone}</td>
+      <td>${d.type}</td>
+      <td class="ps-amt" style="color:#f59e0b">৳${Number(d.amount).toLocaleString()}</td>
+    </tr>`).join('');
+
+  document.getElementById('printPreviewPeriod').textContent = label;
+
+  document.getElementById('printSheet').innerHTML = `
+    <div class="ps-header">
+      <div class="ps-store-icon"><i class="fas fa-store-alt"></i></div>
+      <div class="ps-store-name">SmartRetail Store</div>
+      <div class="ps-store-sub">123 Bashundhara, Dhaka, Bangladesh | Tel: 01700-000000</div>
+      <div class="ps-period-tag">${label} — Financial Statement</div>
+    </div>
+
+    <div class="ps-kpi-row">
+      <div class="ps-kpi blue">  <span>Total Revenue</span> <strong>৳${fmt(totalRev)}</strong></div>
+      <div class="ps-kpi red">   <span>Total Expenses</span><strong>৳${fmt(totalExp)}</strong></div>
+      <div class="ps-kpi purple"><span>Net Profit</span>    <strong>৳${fmt(netProfit)}</strong></div>
+      <div class="ps-kpi green"> <span>Profit Margin</span> <strong>${margin.toFixed(1)}%</strong></div>
+    </div>
+
+    ${fTxns.length ? `
+    <div class="ps-section-title"><i class="fas fa-shopping-cart"></i> Sales Transactions (${fTxns.length})</div>
+    <table class="ps-table">
+      <thead><tr><th>Invoice</th><th>Customer</th><th>Date</th><th>Method</th><th style="text-align:right">Amount</th></tr></thead>
+      <tbody>${txnRows}</tbody>
+    </table>` : ''}
+
+    ${fExps.length ? `
+    <div class="ps-section-title"><i class="fas fa-receipt"></i> Expense Records (${fExps.length})</div>
+    <table class="ps-table">
+      <thead><tr><th>Type</th><th>Description</th><th>Date</th><th style="text-align:right">Amount</th></tr></thead>
+      <tbody>${expRows}</tbody>
+    </table>` : ''}
+
+    ${active.length ? `
+    <div class="ps-section-title"><i class="fas fa-wallet"></i> Active Due Accounts (${active.length})</div>
+    <table class="ps-table">
+      <thead><tr><th>Customer</th><th>Phone</th><th>Type</th><th style="text-align:right">Amount</th></tr></thead>
+      <tbody>${dueRows}</tbody>
+    </table>` : ''}
+
+    <div class="ps-totals-box">
+      <div class="ps-total-row"><span>Total Revenue</span><span>৳${fmt(totalRev)}</span></div>
+      <div class="ps-total-row"><span>Cost of Goods</span><span style="color:#f43f5e">— ৳${fmt(totalRev - grossP)}</span></div>
+      <div class="ps-total-row"><span>Gross Profit</span><span>৳${fmt(grossP)}</span></div>
+      <div class="ps-total-row"><span>Total Expenses</span><span style="color:#f43f5e">— ৳${fmt(totalExp)}</span></div>
+      <div class="ps-total-row"><span>NET PROFIT</span><span style="color:${netProfit>=0?'#10b981':'#f43f5e'}">৳${fmt(netProfit)}</span></div>
+    </div>
+
+    <div class="ps-footer">
+      <strong>SmartRetail POS System</strong> — Confidential Business Statement<br>
+      <span class="ps-printed-on">Printed on: ${new Date().toLocaleString('en-BD')}</span>
+    </div>`;
+
+  document.getElementById('printPreviewModal').classList.add('show');
+}
+
+function closePrintPreview() {
+  document.getElementById('printPreviewModal').classList.remove('show');
+}
+
+function executePrint() {
+  window.print();
+}
+
+// Override downloadStatement to also open preview
+downloadStatement = function() {
+  printStatement();
+};

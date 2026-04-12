@@ -67,7 +67,7 @@
             <div class="brand-icon"><i class="fas fa-store-alt"></i></div>
             <div class="brand-text">
               <span class="brand-name">SmartRetail</span>
-              <span class="brand-tag">POS v6.0</span>
+              <span class="brand-tag">POS v7.0</span>
             </div>
           </div>
           <div class="nav-tabs">
@@ -710,10 +710,14 @@
             </div>
             <div class="statement-controls">
               <select class="month-selector" id="statementMonth" onchange="renderStatement()">
-                <option value="all">All Time</option>
-                <option value="today">Today</option>
-                <option value="week">This Week</option>
-                <option value="month" selected>This Month</option>
+                <option value="2025-04">April 2025</option>
+                <option value="2025-03">March 2025</option>
+                <option value="2025-02">February 2025</option>
+                <option value="2025-01">January 2025</option>
+                <option value="2024-12">December 2024</option>
+                <option value="2024-11">November 2024</option>
+                <option value="2024-10">October 2024</option>
+                <option value="2024-09">September 2024</option>
               </select>
               <button class="btn-secondary" onclick="printStatement()">
                 <i class="fas fa-print"></i> Print
@@ -1138,6 +1142,31 @@
           <button class="btn-primary full-width" onclick="closeBkashModal()">
             <i class="fas fa-check-circle"></i> Payment Received
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================== PRINT PREVIEW MODAL ======================== -->
+    <div class="modal print-preview-modal" id="printPreviewModal">
+      <div class="print-preview-content">
+        <div class="print-preview-toolbar">
+          <div class="print-preview-title">
+            <i class="fas fa-print"></i>
+            <span>Print Preview — <span id="printPreviewPeriod">Statement</span></span>
+          </div>
+          <div class="print-preview-actions">
+            <button class="print-go-btn" onclick="executePrint()">
+              <i class="fas fa-print"></i> Print
+            </button>
+            <button class="print-close-btn" onclick="closePrintPreview()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+        <div class="print-preview-body">
+          <div class="print-sheet" id="printSheet">
+            <!-- injected by JS -->
+          </div>
         </div>
       </div>
     </div>
