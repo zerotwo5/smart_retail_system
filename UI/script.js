@@ -808,484 +808,93 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+
 // ============================================================
-//   v2.1 ADDITIONS
+//   SMART RETAIL v2.1 — ADDON MODULE
+//   Dues | Expenses | Statement | Dashboard — Clean Rewrite
 // ============================================================
 
-// ---- Products: add purchasePrice field ----
+/* ── Product extensions ─────────────────────────────────── */
 products.forEach(p => {
   if (!p.purchasePrice) p.purchasePrice = Math.round(p.price * 0.75);
-  if (!p.salesPrice) p.salesPrice = p.price;
+  if (!p.salesPrice)    p.salesPrice    = p.price;
 });
 
-// ---- Sync Button ----
-function syncData() {
-  const btn = document.querySelector('.sync-btn');
-  if (btn) {
-    btn.classList.add('syncing');
-    btn.querySelector('span').textContent = 'Syncing...';
-  }
-  setTimeout(() => {
-    if (btn) {
-      btn.classList.remove('syncing');
-      btn.querySelector('span').textContent = 'Sync';
-    }
-    showToast('Data synced to cloud ✓', 'success');
-  }, 1800);
-}
-
-// ---- Due Period ----
-function selectDuePeriod(days, btn) {
-  document.querySelectorAll('.due-period-btn').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  const inp = document.getElementById('duePeriodDays');
-  if (inp) inp.value = days;
-}
-
-// ---- Cash Change Calc ----
-function calcChange() {
-  const total = computeTotal();
-  const received = parseFloat(document.getElementById('cashReceived')?.value) || 0;
-  const changeEl = document.getElementById('changeDisplay');
-  const changeAmt = document.getElementById('changeAmount');
-  if (!changeEl || !changeAmt) return;
-  if (received > 0) {
-    const change = received - total;
-    changeEl.style.display = 'block';
-    changeAmt.textContent = `৳${Math.max(0, change).toFixed(2)}`;
-    changeAmt.style.color = change >= 0 ? 'var(--success)' : 'var(--danger)';
-    changeEl.textContent = change >= 0 ? `Change: ` : `Short: `;
-    changeEl.appendChild(changeAmt);
-  } else {
-    changeEl.style.display = 'none';
-  }
-}
-
-// Override renderCart to use vatInput
-const _origRenderCart = renderCart;
-renderCart = function() {
-  const container = document.getElementById('cartItems');
-  const countBadge = document.getElementById('cartCount');
-  if (!container) return;
-
-  if (cart.length === 0) {
-    container.innerHTML = `<div class="empty-cart"><i class="fas fa-shopping-cart"></i><p>Cart is empty</p><span>Select products to add</span></div>`;
-    document.getElementById('cartSubtotal').textContent = '৳0';
-    document.getElementById('cartVat').textContent = '৳0';
-    document.getElementById('cartTotal').textContent = '৳0';
-    if (countBadge) countBadge.textContent = '0 items';
-    return;
-  }
-
-  let subtotal = 0;
-  container.innerHTML = cart.map((item, index) => {
-    const itemTotal = item.price * item.quantity;
-    subtotal += itemTotal;
-    return `<div class="cart-item">
-      <div class="cart-item-info">
-        <h4>${item.name}</h4>
-        <p>৳${item.price}/${item.unit} × ${item.displayQuantity}</p>
-      </div>
-      <div class="cart-item-actions">
-        <span><strong>৳${itemTotal.toFixed(2)}</strong></span>
-        <div class="qty-control">
-          <button class="qty-btn" onclick="updateCartItem(${index}, -1)">−</button>
-          <span>${item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(2)}</span>
-          <button class="qty-btn" onclick="updateCartItem(${index}, 1)">+</button>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-
-  const vatPct = parseFloat(document.getElementById('vatInput')?.value) || 0;
-  const discount = parseFloat(document.getElementById('discountInput')?.value) || 0;
-  const vat = subtotal * (vatPct / 100);
-  const total = Math.max(0, subtotal + vat - discount);
-
-  document.getElementById('cartSubtotal').textContent = `৳${subtotal.toFixed(2)}`;
-  document.getElementById('cartVat').textContent = `৳${vat.toFixed(2)}`;
-  document.getElementById('cartTotal').textContent = `৳${total.toFixed(2)}`;
-  if (countBadge) countBadge.textContent = `${cart.length} item${cart.length !== 1 ? 's' : ''}`;
+/* ── Expense type maps ──────────────────────────────────── */
+const EXP_TYPE_COLORS = {
+  Snacks:'#f59e0b', Tea:'#10b981', Meals:'#f43f5e',
+  Chanda:'#8b5cf6', Maintenance:'#64748b', Transport:'#0ea5e9',
+  Utilities:'#eab308', Others:'#475569',
+};
+const EXP_TYPE_ICONS = {
+  Snacks:'fa-cookie-bite', Tea:'fa-mug-hot', Meals:'fa-utensils',
+  Chanda:'fa-hand-holding-heart', Maintenance:'fa-tools', Transport:'fa-truck',
+  Utilities:'fa-bolt', Others:'fa-ellipsis-h',
 };
 
-// Override computeTotal to use vatInput
-computeTotal = function() {
-  const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const vatPct = parseFloat(document.getElementById('vatInput')?.value) || 0;
-  const vat = subtotal * (vatPct / 100);
-  const discount = parseFloat(document.getElementById('discountInput')?.value) || 0;
-  return Math.max(0, subtotal + vat - discount);
-};
-
-// Override processCheckout to validate due fields
-const _origProcessCheckout = processCheckout;
-processCheckout = function() {
-  if (cart.length === 0) { showToast('Cart is empty!', 'error'); return; }
-
-  // Due validation
-  if (selectedPayment === 'due') {
-    const name = document.getElementById('dueCustomerName')?.value.trim();
-    const phone = document.getElementById('dueCustomerPhone')?.value.trim();
-    if (!name) {
-      showToast('Customer name is required for Due purchase!', 'error');
-      document.getElementById('dueCustomerName')?.focus();
-      return;
-    }
-    if (!phone) {
-      showToast('Phone number is required for Due purchase!', 'error');
-      document.getElementById('dueCustomerPhone')?.focus();
-      return;
-    }
-  }
-
-  if (selectedPayment === 'bkash' || selectedPayment === 'nagad') {
-    showQRModal();
-  } else {
-    completeTransaction();
-  }
-};
-
-// Override completeTransaction to use due customer fields
-const _origCompleteTransaction = completeTransaction;
-completeTransaction = function() {
-  let customerName, customerPhone;
-
-  if (selectedPayment === 'due') {
-    customerName = document.getElementById('dueCustomerName')?.value.trim() || 'Due Customer';
-    customerPhone = document.getElementById('dueCustomerPhone')?.value.trim() || '';
-  } else {
-    customerName = document.getElementById('customerName')?.value.trim() || 'Walk-in';
-    customerPhone = document.getElementById('customerPhone')?.value.trim() || '';
-  }
-
-  const vatPct = parseFloat(document.getElementById('vatInput')?.value) || 0;
-  const discountEl = document.getElementById('discountInput');
-  const discount = discountEl ? (parseFloat(discountEl.value) || 0) : 0;
-
-  let subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const vat = subtotal * (vatPct / 100);
-  const total = Math.max(0, subtotal + vat - discount);
-  const invoiceNo = `INV-2025-${String(invoiceCounter).padStart(3, '0')}`;
-  const dueDays = parseInt(document.getElementById('duePeriodDays')?.value) || 0;
-
-  const txn = {
-    id: invoiceCounter, invoiceNo, customer: customerName, phone: customerPhone,
-    method: selectedPayment, items: cart.map(i => ({ name: i.name, price: i.price, qty: i.quantity, unit: i.unit })),
-    subtotal, vat, vatPct, discount, total, time: new Date(), dueDays
-  };
-  allTransactions.push(txn);
-
-  cart.forEach(ci => {
-    const prod = products.find(p => p.id === ci.id);
-    if (prod) { prod.stock = Math.max(0, prod.stock - ci.quantity); prod.pieces = prod.stock; }
-  });
-
-  invoiceCounter++;
-  updateInvoiceNumber();
-  showReceipt(txn);
-
-  cart = [];
-  renderCart();
-  if (discountEl) discountEl.value = '';
-  const cn = document.getElementById('customerName'); if (cn) cn.value = '';
-  const cp = document.getElementById('customerPhone'); if (cp) cp.value = '';
-  const dcn = document.getElementById('dueCustomerName'); if (dcn) dcn.value = '';
-  const dcp = document.getElementById('dueCustomerPhone'); if (dcp) dcp.value = '';
-  renderInventory();
-  updateLowStockCount();
-};
-
-// ---- Inventory: renderInventory with purchase/sales price + stock highlight ----
-renderInventory = function(list) {
-  list = list || products;
-  const tbody = document.getElementById('inventoryTableBody');
-  if (!tbody) return;
-  let totalValue = 0;
-
-  tbody.innerHTML = list.map(p => {
-    const val = p.salesPrice * p.pieces;
-    totalValue += val;
-    const status = p.pieces > 10 ? 'instock' : 'lowstock';
-    const statusText = p.pieces > 10 ? 'In Stock' : 'Low Stock';
-
-    let stockClass = 'high';
-    if (p.pieces <= 3) stockClass = 'critical';
-    else if (p.pieces <= 5) stockClass = 'low';
-    else if (p.pieces <= 15) stockClass = 'medium';
-
-    return `<tr>
-      <td><strong>${p.name}</strong></td>
-      <td>${p.category}</td>
-      <td><div class="price-two-col"><div class="purchase-price">Buy: <span>৳${p.purchasePrice || Math.round(p.price*0.75)}</span></div></div></td>
-      <td><div class="sales-price">৳${p.salesPrice || p.price}</div></td>
-      <td><span class="stock-highlight ${stockClass}">${p.pieces} ${p.unit}</span></td>
-      <td>৳${val.toFixed(2)}</td>
-      <td><span class="status-badge ${status}">${statusText}</span></td>
-      <td class="action-icons">
-        <i class="fas fa-edit" onclick="editProduct(${p.id})" title="Edit"></i>
-        <i class="fas fa-trash-alt" onclick="deleteProduct(${p.id})" title="Delete"></i>
-      </td>
-    </tr>`;
-  }).join('');
-
-  const tv = document.getElementById('totalStockValue');
-  const tp = document.getElementById('totalProducts');
-  const ls = document.getElementById('lowStockItems2');
-  if (tv) tv.textContent = `৳${totalValue.toFixed(2)}`;
-  if (tp) tp.textContent = list.length;
-  if (ls) ls.textContent = list.filter(p => p.pieces <= 10).length;
-};
-
-// ---- Barcode scan stubs ----
-function triggerBarcodeScan() {
-  showToast('Barcode Scanner: Connect USB/camera scanner', 'info');
-}
-function triggerInventoryBarcode() {
-  showToast('Inventory Barcode Scanner: Connect USB/camera scanner', 'info');
-}
-
-// ---- Add Product Modal ----
-function showAddProductModal() {
-  document.getElementById('addProductModal').classList.add('show');
-  // watch inputs for profit preview
-  const pp = document.getElementById('newProductPurchasePrice');
-  const sp = document.getElementById('newProductSalesPrice');
-  [pp, sp].forEach(el => {
-    if (el) el.addEventListener('input', updateProfitPreview);
-  });
-}
-function closeAddProductModal() {
-  document.getElementById('addProductModal').classList.remove('show');
-  ['newProductName','newProductPurchasePrice','newProductSalesPrice','newProductStock'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  const sel = document.getElementById('newProductCategory');
-  if (sel) sel.value = '';
-  document.getElementById('profitPreview').style.display = 'none';
-}
-function updateProfitPreview() {
-  const pp = parseFloat(document.getElementById('newProductPurchasePrice')?.value) || 0;
-  const sp = parseFloat(document.getElementById('newProductSalesPrice')?.value) || 0;
-  const preview = document.getElementById('profitPreview');
-  if (pp > 0 && sp > 0 && preview) {
-    const profit = sp - pp;
-    const margin = ((profit / sp) * 100).toFixed(1);
-    document.getElementById('profitPerUnit').textContent = `৳${profit.toFixed(2)}`;
-    document.getElementById('profitMargin').textContent = `${margin}%`;
-    preview.style.display = 'flex';
-  } else if (preview) {
-    preview.style.display = 'none';
-  }
-}
-function saveNewProduct() {
-  const name = document.getElementById('newProductName')?.value.trim();
-  const category = document.getElementById('newProductCategory')?.value;
-  const purchasePrice = parseFloat(document.getElementById('newProductPurchasePrice')?.value);
-  const salesPrice = parseFloat(document.getElementById('newProductSalesPrice')?.value);
-  const stock = parseInt(document.getElementById('newProductStock')?.value) || 0;
-  const unit = document.getElementById('newProductUnit')?.value || 'pcs';
-
-  if (!name) { showToast('Product name is required', 'error'); return; }
-  if (!category) { showToast('Category is required', 'error'); return; }
-  if (isNaN(purchasePrice) || purchasePrice < 0) { showToast('Valid purchase price required', 'error'); return; }
-  if (isNaN(salesPrice) || salesPrice < 0) { showToast('Valid sales price required', 'error'); return; }
-
-  const newId = Math.max(...products.map(p => p.id)) + 1;
-  products.push({
-    id: newId, name, category,
-    price: salesPrice, salesPrice, purchasePrice,
-    unit, stock, pieces: stock
-  });
-
-  renderInventory();
-  renderProducts();
-  updateLowStockCount();
-  closeAddProductModal();
-  showToast(`"${name}" added to inventory!`, 'success');
-}
-
-// ---- Pie Charts (canvas-based, no library) ----
-function drawPieChart(canvasId, data, legendId) {
-  const canvas = document.getElementById(canvasId);
-  const legend = document.getElementById(legendId);
-  if (!canvas || !legend) return;
-
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  const cx = W / 2, cy = H / 2, r = Math.min(W, H) / 2 - 6;
-  ctx.clearRect(0, 0, W, H);
-
-  const total = data.reduce((s, d) => s + d.value, 0);
-  if (total === 0) return;
-
-  const colors = ['#6366f1','#22d3ee','#10b981','#f59e0b','#f43f5e','#8b5cf6','#06b6d4'];
-  let startAngle = -Math.PI / 2;
-
-  data.forEach((d, i) => {
-    const slice = (d.value / total) * Math.PI * 2;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r, startAngle, startAngle + slice);
-    ctx.closePath();
-    ctx.fillStyle = colors[i % colors.length];
-    ctx.fill();
-    // Gap
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r, startAngle + slice - 0.01, startAngle + slice);
-    ctx.closePath();
-    ctx.fillStyle = 'var(--bg-card)';
-    // Inner circle (donut)
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.52, 0, Math.PI * 2);
-    ctx.fillStyle = 'var(--bg-card)';
-    ctx.fill();
-    startAngle += slice;
-  });
-
-  // Legend
-  legend.innerHTML = data.map((d, i) => `
-    <div class="pie-legend-item">
-      <div class="pie-legend-dot" style="background:${colors[i % colors.length]}"></div>
-      <span>${d.label}</span>
-      <span class="pie-legend-val">${Math.round((d.value/total)*100)}%</span>
-    </div>
-  `).join('');
-}
-
-// Override renderDashboard to include charts
-const _origRenderDash = renderDashboard;
-renderDashboard = function() {
-  _origRenderDash();
-
-  // Payment breakdown pie
-  const paymentCounts = { cash: 0, bkash: 0, nagad: 0, due: 0 };
-  allTransactions.forEach(t => { paymentCounts[t.method] = (paymentCounts[t.method] || 0) + t.total; });
-  const pieData = Object.entries(paymentCounts)
-    .filter(([,v]) => v > 0)
-    .map(([k,v]) => ({ label: k.toUpperCase(), value: v }));
-  drawPieChart('pieCanvas', pieData.length ? pieData : [{label:'No data',value:1}], 'pieLegend');
-
-  // Category sales donut
-  const catSales = {};
-  allTransactions.forEach(t => {
-    t.items.forEach(item => {
-      const prod = products.find(p => p.name === item.name);
-      const cat = prod?.category || 'Other';
-      catSales[cat] = (catSales[cat] || 0) + item.qty;
-    });
-  });
-  const catData = Object.entries(catSales).map(([k,v]) => ({ label: k, value: v }));
-  drawPieChart('catCanvas', catData.length ? catData : [{label:'No data',value:1}], 'catLegend');
-
-  // Quick stats
-  const qsList = document.getElementById('quickStatsList');
-  if (qsList) {
-    const avgOrder = allTransactions.length ? (allTransactions.reduce((s,t)=>s+t.total,0)/allTransactions.length) : 0;
-    const cashCount = allTransactions.filter(t=>t.method==='cash').length;
-    const dueCount = allTransactions.filter(t=>t.method==='due').length;
-    const totalItems = allTransactions.reduce((s,t)=>s+t.items.length,0);
-    qsList.innerHTML = [
-      { icon:'fa-shopping-basket', label:'Avg Order Value', val:`৳${avgOrder.toFixed(0)}` },
-      { icon:'fa-money-bill', label:'Cash Transactions', val:cashCount },
-      { icon:'fa-file-invoice', label:'Due Transactions', val:dueCount },
-      { icon:'fa-box', label:'Items Sold', val:totalItems },
-      { icon:'fa-warehouse', label:'Total Products', val:products.length },
-      { icon:'fa-exclamation-triangle', label:'Low Stock Items', val:products.filter(p=>p.stock<=5).length },
-    ].map(qs=>`
-      <div class="qs-item">
-        <div class="qs-label"><i class="fas ${qs.icon}"></i>${qs.label}</div>
-        <div class="qs-value">${qs.val}</div>
-      </div>
-    `).join('');
-  }
-};
-
-// Re-init on load
-document.addEventListener('DOMContentLoaded', () => {
-  products.forEach(p => {
-    if (!p.purchasePrice) p.purchasePrice = Math.round(p.price * 0.75);
-    if (!p.salesPrice) p.salesPrice = p.price;
-  });
-});
-
-// ============================================================
-//   EXPENSES MODULE
-// ============================================================
-
+/* ── Expenses data ──────────────────────────────────────── */
 let expenses = [
-  { id: 1, type: 'Tea',         amount: 80,   description: 'Morning tea for staff',      time: new Date(Date.now() - 5*3600000) },
-  { id: 2, type: 'Meals',       amount: 450,  description: 'Lunch for 3 members',        time: new Date(Date.now() - 4*3600000) },
-  { id: 3, type: 'Maintenance', amount: 1200, description: 'AC servicing',               time: new Date(Date.now() - 2*3600000) },
-  { id: 4, type: 'Transport',   amount: 200,  description: 'Delivery van fuel',          time: new Date(Date.now() - 1*3600000) },
-  { id: 5, type: 'Snacks',      amount: 150,  description: 'Evening snacks',             time: new Date(Date.now() - 30*60000) },
+  { id:1, type:'Tea',         amount:80,   description:'Morning tea for staff',  time:new Date(Date.now()-5*3600000)  },
+  { id:2, type:'Meals',       amount:450,  description:'Lunch for 3 members',    time:new Date(Date.now()-4*3600000)  },
+  { id:3, type:'Maintenance', amount:1200, description:'AC servicing',            time:new Date(Date.now()-2*3600000)  },
+  { id:4, type:'Transport',   amount:200,  description:'Delivery van fuel',       time:new Date(Date.now()-1*3600000)  },
+  { id:5, type:'Snacks',      amount:150,  description:'Evening snacks',          time:new Date(Date.now()-30*60000)   },
 ];
 let expIdCounter = 6;
 let selectedExpType = '';
 
-const EXP_TYPE_COLORS = {
-  Snacks:      '#f59e0b',
-  Tea:         '#10b981',
-  Meals:       '#f43f5e',
-  Chanda:      '#8b5cf6',
-  Maintenance: '#64748b',
-  Transport:   '#0ea5e9',
-  Utilities:   '#eab308',
-  Others:      '#475569',
-};
+/* ── Dues data ──────────────────────────────────────────── */
+let duesData = [
+  { id:1, name:'Abdul Karim',    phone:'01712-345678', type:'Dhaar/Cash',        amount:3200, period:30, addedDate:new Date(Date.now()-35*86400000), paid:false, paidDate:null, note:'' },
+  { id:2, name:'Rahima Begum',   phone:'01823-987654', type:'Product Purchase',  amount:1850, period:10, addedDate:new Date(Date.now()-7*86400000),  paid:false, paidDate:null, note:'Grocery items' },
+  { id:3, name:'Shahidul Islam', phone:'01911-234567', type:'Old Balance',       amount:7500, period:30, addedDate:new Date(Date.now()-40*86400000), paid:false, paidDate:null, note:'' },
+  { id:4, name:'Nasrin Akter',   phone:'01615-112233', type:'Advance Order',     amount:2200, period:20, addedDate:new Date(Date.now()-5*86400000),  paid:false, paidDate:null, note:'Next month order' },
+  { id:5, name:'Rubel Hossain',  phone:'01788-556677', type:'Dhaar/Cash',        amount:1000, period:60, addedDate:new Date(Date.now()-70*86400000), paid:true,  paidDate:new Date(Date.now()-2*86400000), note:'' },
+];
+let dueIdCounter = 6;
+let _selDueType   = '';
+let _duePeriodDays = 5;
 
-const EXP_TYPE_ICONS = {
-  Snacks:      'fa-cookie-bite',
-  Tea:         'fa-mug-hot',
-  Meals:       'fa-utensils',
-  Chanda:      'fa-hand-holding-heart',
-  Maintenance: 'fa-tools',
-  Transport:   'fa-truck',
-  Utilities:   'fa-bolt',
-  Others:      'fa-ellipsis-h',
-};
+// ─── helpers ───
+function _getDueDate(due)  { return new Date(due.addedDate.getTime() + due.period * 86400000); }
+function _getDaysLeft(due) { return Math.ceil((_getDueDate(due) - new Date()) / 86400000); }
+function _getDueStatus(due) {
+  const d = _getDaysLeft(due);
+  if (d < -5) return { label:'Critical', cls:'critical' };
+  if (d <  0) return { label:'Overdue',  cls:'overdue'  };
+  if (d <= 3) return { label:'Due Soon', cls:'pending'  };
+  return           { label:'Pending',  cls:'pending'   };
+}
+function _fmt(n) { return Number(n).toLocaleString('en-IN', { maximumFractionDigits:0 }); }
+function _fmtDt(d, opts) { return new Date(d).toLocaleDateString('en-BD', opts||{year:'numeric',month:'short',day:'numeric'}); }
+function _fmtTm(d) { return new Date(d).toLocaleTimeString('en-BD', {hour:'2-digit', minute:'2-digit'}); }
+function _set(id, val) { const el=document.getElementById(id); if(el) el.textContent=val; }
+
+// ══════════════════════════════════════════════════════════
+//   EXPENSES MODULE
+// ══════════════════════════════════════════════════════════
 
 function selectExpType(btn) {
   document.querySelectorAll('.exp-type-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   selectedExpType = btn.dataset.type;
-  document.getElementById('expType').value = selectedExpType;
 }
 
 function addExpense() {
-  const amountEl = document.getElementById('expAmount');
-  const descEl   = document.getElementById('expDescription');
-  const amount   = parseFloat(amountEl?.value);
+  const amount = parseFloat(document.getElementById('expAmount')?.value);
+  const desc   = document.getElementById('expDescription')?.value.trim() || '';
+  if (!amount || amount <= 0)  { showToast('Enter a valid amount', 'error');   return; }
+  if (!selectedExpType)        { showToast('Select an expense type', 'warning'); return; }
 
-  if (!amount || amount <= 0) {
-    showToast('Enter a valid expense amount', 'error');
-    amountEl?.focus();
-    return;
-  }
-  if (!selectedExpType) {
-    showToast('Please select an expense type', 'warning');
-    return;
-  }
+  expenses.unshift({ id:expIdCounter++, type:selectedExpType, amount, description:desc, time:new Date() });
 
-  const exp = {
-    id: expIdCounter++,
-    type: selectedExpType,
-    amount,
-    description: descEl?.value.trim() || '',
-    time: new Date(),
-  };
-  expenses.unshift(exp);
-
-  // Reset form
-  if (amountEl) amountEl.value = '';
-  if (descEl) descEl.value = '';
+  document.getElementById('expAmount').value = '';
+  document.getElementById('expDescription').value = '';
   document.querySelectorAll('.exp-type-btn').forEach(b => b.classList.remove('active'));
   selectedExpType = '';
-  document.getElementById('expType').value = '';
 
   renderExpenses();
-  showToast(`${exp.type} expense of ৳${exp.amount.toFixed(2)} added`, 'success');
+  showToast(`${expenses[0].type} ৳${amount.toFixed(2)} added`, 'success');
 }
 
 function deleteExpense(id) {
@@ -1296,43 +905,27 @@ function deleteExpense(id) {
 
 function clearAllExpenses() {
   if (!expenses.length) return;
-  if (confirm('Clear all expense records?')) {
-    expenses = [];
-    renderExpenses();
-    showToast('All expenses cleared', 'info');
-  }
+  if (confirm('Clear all expense records?')) { expenses = []; renderExpenses(); showToast('Cleared', 'info'); }
 }
 
-function renderExpenses() {
-  renderExpList();
-  renderExpChart();
-  renderExpSummary();
-}
+function renderExpenses() { renderExpList(); renderExpChart(); renderExpSummary(); }
 
 function renderExpList() {
   const tbody = document.getElementById('expListBody');
   if (!tbody) return;
-
   if (!expenses.length) {
-    tbody.innerHTML = `<tr class="exp-empty-row"><td colspan="5"><div class="exp-list-empty"><i class="fas fa-inbox"></i><p>No expenses recorded yet</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5"><div class="exp-list-empty"><i class="fas fa-inbox"></i><p>No expenses recorded yet</p></div></td></tr>`;
     return;
   }
-
-  tbody.innerHTML = expenses.map((e, idx) => {
-    const color = EXP_TYPE_COLORS[e.type] || '#64748b';
-    const icon  = EXP_TYPE_ICONS[e.type]  || 'fa-tag';
-    const timeStr = e.time.toLocaleTimeString('en-BD', { hour: '2-digit', minute: '2-digit' });
-    const dateStr = e.time.toLocaleDateString('en-BD', { month: 'short', day: 'numeric' });
-    return `<tr class="${idx === 0 ? 'exp-row-new' : ''}">
-      <td>
-        <span class="exp-type-chip" style="background:${color}18; color:${color}">
-          <i class="fas ${icon}"></i>${e.type}
-        </span>
-      </td>
-      <td class="exp-desc-cell" title="${e.description || '—'}">${e.description || '<span style="color:var(--text-muted)">—</span>'}</td>
+  tbody.innerHTML = expenses.map((e,i) => {
+    const col  = EXP_TYPE_COLORS[e.type] || '#64748b';
+    const icon = EXP_TYPE_ICONS[e.type]  || 'fa-tag';
+    return `<tr class="${i===0?'exp-row-new':''}">
+      <td><span class="exp-type-chip" style="background:${col}18;color:${col}"><i class="fas ${icon}"></i>${e.type}</span></td>
+      <td class="exp-desc-cell" title="${e.description||''}">${e.description||'<span style="color:var(--text-muted)">—</span>'}</td>
       <td class="exp-amount-cell">৳${e.amount.toFixed(2)}</td>
-      <td class="exp-time-cell">${dateStr}, ${timeStr}</td>
-      <td><button class="exp-del-btn" onclick="deleteExpense(${e.id})" title="Delete"><i class="fas fa-trash"></i></button></td>
+      <td class="exp-time-cell">${_fmtDt(e.time,{month:'short',day:'numeric'})}, ${_fmtTm(e.time)}</td>
+      <td><button class="exp-del-btn" onclick="deleteExpense(${e.id})"><i class="fas fa-trash"></i></button></td>
     </tr>`;
   }).join('');
 }
@@ -1340,33 +933,23 @@ function renderExpList() {
 function renderExpChart() {
   const container = document.getElementById('expBarChart');
   if (!container) return;
-
   if (!expenses.length) {
     container.innerHTML = `<div class="exp-chart-empty"><i class="fas fa-chart-bar"></i><p>No expenses yet</p></div>`;
     return;
   }
-
-  // Aggregate by type
   const byType = {};
-  expenses.forEach(e => {
-    byType[e.type] = (byType[e.type] || 0) + e.amount;
-  });
-
-  const sorted = Object.entries(byType).sort((a, b) => b[1] - a[1]);
+  expenses.forEach(e => { byType[e.type] = (byType[e.type]||0) + e.amount; });
+  const sorted = Object.entries(byType).sort((a,b) => b[1]-a[1]);
   const maxVal = sorted[0][1];
-
-  container.innerHTML = sorted.map(([type, total], idx) => {
-    const color  = EXP_TYPE_COLORS[type] || '#64748b';
-    const icon   = EXP_TYPE_ICONS[type]  || 'fa-tag';
-    const pct    = Math.max(8, Math.round((total / maxVal) * 100));
-    const delay  = idx * 0.07;
-    return `<div class="exp-chart-row" style="animation-delay:${delay}s">
-      <div class="exp-bar-label">
-        <i class="fas ${icon}" style="color:${color}"></i>${type}
-      </div>
+  container.innerHTML = sorted.map(([type,total],i) => {
+    const col  = EXP_TYPE_COLORS[type] || '#64748b';
+    const icon = EXP_TYPE_ICONS[type]  || 'fa-tag';
+    const pct  = Math.max(8, Math.round((total/maxVal)*100));
+    return `<div class="exp-chart-row" style="animation-delay:${i*0.07}s">
+      <div class="exp-bar-label"><i class="fas ${icon}" style="color:${col}"></i>${type}</div>
       <div class="exp-bar-track">
-        <div class="exp-bar-fill animate" style="width:${pct}%; background:${color}; animation-delay:${delay}s">
-          ${pct > 20 ? `৳${total.toFixed(0)}` : ''}
+        <div class="exp-bar-fill animate" style="width:${pct}%;background:${col};animation-delay:${i*0.07}s">
+          ${pct>20?`৳${total.toFixed(0)}`:''}
         </div>
       </div>
       <div class="exp-bar-amount">৳${total.toFixed(0)}</div>
@@ -1377,56 +960,702 @@ function renderExpChart() {
 function renderExpSummary() {
   const now   = new Date();
   const today = now.toDateString();
-  const month = now.getMonth();
-  const year  = now.getFullYear();
-
-  const todayTotal = expenses
-    .filter(e => new Date(e.time).toDateString() === today)
-    .reduce((s, e) => s + e.amount, 0);
-
-  const monthTotal = expenses
-    .filter(e => { const d = new Date(e.time); return d.getMonth() === month && d.getFullYear() === year; })
-    .reduce((s, e) => s + e.amount, 0);
-
-  const elToday = document.getElementById('expTodayTotal');
-  const elMonth = document.getElementById('expMonthTotal');
-  const elCount = document.getElementById('expRecordCount');
-  const elBadge = document.getElementById('expTotalBadge');
-
-  if (elToday) elToday.textContent = `৳${todayTotal.toFixed(2)}`;
-  if (elMonth) elMonth.textContent = `৳${monthTotal.toFixed(2)}`;
-  if (elCount) elCount.textContent  = expenses.length;
-  if (elBadge) elBadge.textContent  = `৳${monthTotal.toFixed(2)}`;
+  const m     = now.getMonth(), y = now.getFullYear();
+  const todayTotal = expenses.filter(e => new Date(e.time).toDateString()===today).reduce((s,e)=>s+e.amount,0);
+  const monthTotal = expenses.filter(e => { const d=new Date(e.time); return d.getMonth()===m&&d.getFullYear()===y; }).reduce((s,e)=>s+e.amount,0);
+  _set('expTodayTotal',  `৳${todayTotal.toFixed(2)}`);
+  _set('expMonthTotal',  `৳${monthTotal.toFixed(2)}`);
+  _set('expRecordCount', expenses.length);
+  _set('expTotalBadge',  `৳${monthTotal.toFixed(2)}`);
 }
 
-// Hook into switchTab to render expenses on tab open
-const _origSwitchTab = switchTab;
+// ══════════════════════════════════════════════════════════
+//   DUES MODULE
+// ══════════════════════════════════════════════════════════
+
+function showAddDueModal()  { document.getElementById('addDueModal').classList.add('show'); }
+function closeAddDueModal() {
+  document.getElementById('addDueModal').classList.remove('show');
+  ['dueFormName','dueFormPhone','dueFormAmount','dueFormNote'].forEach(id => {
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.querySelectorAll('.due-type-btn').forEach(b=>b.classList.remove('active'));
+  _selDueType = '';
+  document.getElementById('dueFormType').value = '';
+  // Reset period to 5d
+  const firstPeriodBtn = document.querySelector('#addDueModal .due-period-btn');
+  if (firstPeriodBtn) { selectDueFormPeriod(5, firstPeriodBtn); }
+}
+
+function selectDueType(btn) {
+  document.querySelectorAll('.due-type-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  _selDueType = btn.dataset.dtype;
+  document.getElementById('dueFormType').value = _selDueType;
+}
+
+function selectDueFormPeriod(days, btn) {
+  document.querySelectorAll('#addDueModal .due-period-btn').forEach(b=>b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  _duePeriodDays = days;
+  const el = document.getElementById('dueFormPeriod'); if(el) el.value = days;
+}
+
+// Payment panel due period (sales tab)
+function selectDuePeriod(days, btn) {
+  document.querySelectorAll('.due-period-btns .due-period-btn').forEach(b=>b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const el = document.getElementById('duePeriodDays'); if(el) el.value = days;
+}
+
+function saveDue() {
+  const name   = document.getElementById('dueFormName')?.value.trim();
+  const phone  = document.getElementById('dueFormPhone')?.value.trim();
+  const type   = document.getElementById('dueFormType')?.value;
+  const period = parseInt(document.getElementById('dueFormPeriod')?.value) || 5;
+  const amount = parseFloat(document.getElementById('dueFormAmount')?.value);
+  const note   = document.getElementById('dueFormNote')?.value.trim() || '';
+
+  if (!name)               { showToast('Customer name required', 'error');   return; }
+  if (!phone)              { showToast('Phone number required',  'error');   return; }
+  if (!type)               { showToast('Select a due type',      'warning'); return; }
+  if (!amount || amount<=0){ showToast('Enter valid amount',     'error');   return; }
+
+  duesData.unshift({ id:dueIdCounter++, name, phone, type, amount, period, addedDate:new Date(), paid:false, paidDate:null, note });
+  closeAddDueModal();
+  renderDuesTab();
+  renderDashboard();
+  showToast(`Due ৳${amount.toFixed(2)} added for ${name}`, 'success');
+}
+
+function markDuePaid(id) {
+  const due = duesData.find(d => d.id === id);
+  if (!due || due.paid) return;
+  const row = document.getElementById(`due-row-${id}`);
+  const doMark = () => {
+    due.paid = true;
+    due.paidDate = new Date();
+    renderDuesTab();
+    renderDashboard();
+    showToast(`✓ ${due.name}'s ৳${_fmt(due.amount)} marked as paid!`, 'success');
+  };
+  if (row) {
+    row.classList.add('due-row-removing');
+    setTimeout(doMark, 420);
+  } else { doMark(); }
+}
+
+function deleteDue(id) {
+  if (!confirm('Delete this due record?')) return;
+  duesData = duesData.filter(d => d.id !== id);
+  renderDuesTab();
+  showToast('Due deleted', 'info');
+}
+
+function callCustomer(phone) { window.location.href = `tel:${phone.replace(/-/g,'')}`; }
+function whatsappCustomer(phone) {
+  const cleaned = phone.replace(/-/g,'').replace(/^0/,'880');
+  window.open(`https://wa.me/${cleaned}?text=${encodeURIComponent('আপনার বাকি টাকা পরিশোধের অনুরোধ করা হচ্ছে। ধন্যবাদ।')}`, '_blank');
+}
+
+function renderDuesTab() {
+  const active = duesData.filter(d => !d.paid);
+  const paid   = duesData.filter(d =>  d.paid);
+  const pendingAmt   = active.reduce((s,d)=>s+d.amount, 0);
+  const collectedAmt = paid.reduce((s,d)=>s+d.amount,   0);
+
+  _set('dueStatActive',    active.length);
+  _set('dueStatTotal',     `৳${_fmt(pendingAmt)}`);
+  _set('dueStatCollected', `৳${_fmt(collectedAmt)}`);
+  _set('dueActiveCount',   active.length);
+  _set('dueTotalAmt',      `৳${_fmt(pendingAmt)}`);
+  _set('dueCollectedAmt',  `৳${_fmt(collectedAmt)}`);
+
+  // Active table
+  const tbody = document.getElementById('duesTableBody');
+  if (tbody) {
+    if (!active.length) {
+      tbody.innerHTML = `<tr><td colspan="8"><div style="padding:28px;text-align:center;color:var(--text-muted)"><i class="fas fa-check-circle" style="font-size:28px;opacity:.3;display:block;margin-bottom:8px;color:var(--success)"></i>No active dues 🎉</div></td></tr>`;
+    } else {
+      tbody.innerHTML = active.map(due => {
+        const st      = _getDueStatus(due);
+        const daysL   = _getDaysLeft(due);
+        const dLabel  = daysL < 0 ? `${Math.abs(daysL)}d overdue` : `${daysL}d left`;
+        const initials= due.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+        return `<tr class="due-row" id="due-row-${due.id}">
+          <td><div class="customer-cell"><div class="cust-avatar">${initials}</div><div><div style="font-weight:600">${due.name}</div><div style="font-size:11px;color:var(--text-muted)">${due.note||''}</div></div></div></td>
+          <td style="font-size:13px">${due.phone}</td>
+          <td><span class="exp-type-chip" style="background:rgba(245,158,11,0.12);color:var(--warning);font-size:11px">${due.type}</span></td>
+          <td class="amount-cell">৳${_fmt(due.amount)}</td>
+          <td style="font-size:12px;color:var(--text-secondary)">${_fmtDt(_getDueDate(due))}</td>
+          <td><span class="days-badge ${st.cls}">${dLabel}</span></td>
+          <td><span class="status-badge ${st.cls}">${st.label}</span></td>
+          <td class="action-icons" style="display:flex;gap:5px">
+            <button class="due-action-btn success" title="Mark Paid"  onclick="markDuePaid(${due.id})"><i class="fas fa-check"></i></button>
+            <button class="due-action-btn info"    title="Call"       onclick="callCustomer('${due.phone}')"><i class="fas fa-phone"></i></button>
+            <button class="due-action-btn warning" title="WhatsApp"   onclick="whatsappCustomer('${due.phone}')"><i class="fab fa-whatsapp"></i></button>
+            <button class="due-action-btn" style="background:rgba(244,63,94,0.1);color:var(--danger)" title="Delete" onclick="deleteDue(${due.id})"><i class="fas fa-trash"></i></button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+  }
+
+  // Paid table
+  const paidBody = document.getElementById('paidDuesTableBody');
+  if (paidBody) {
+    _set('paidDuesCount', `${paid.length} records`);
+    if (!paid.length) {
+      paidBody.innerHTML = `<tr><td colspan="7"><div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px">No paid dues yet</div></td></tr>`;
+    } else {
+      paidBody.innerHTML = paid.map(due => {
+        const initials = due.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+        return `<tr class="due-row">
+          <td><div class="customer-cell"><div class="cust-avatar" style="background:linear-gradient(135deg,var(--success),#4ade80)">${initials}</div><span style="font-weight:600">${due.name}</span></div></td>
+          <td style="font-size:13px">${due.phone}</td>
+          <td><span class="exp-type-chip" style="background:rgba(34,197,94,0.1);color:var(--success);font-size:11px">${due.type}</span></td>
+          <td class="amount-cell" style="color:var(--success)">৳${_fmt(due.amount)}</td>
+          <td style="font-size:12px;color:var(--text-muted)">${_fmtDt(_getDueDate(due))}</td>
+          <td style="font-size:12px;font-weight:700;color:var(--success)">${due.paidDate?_fmtDt(due.paidDate):'—'}</td>
+          <td><span class="status-badge instock">Paid</span></td>
+        </tr>`;
+      }).join('');
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//   STATEMENT MODULE
+// ══════════════════════════════════════════════════════════
+
+function renderStatement() {
+  const filter = document.getElementById('statementMonth')?.value || 'month';
+  const now = new Date();
+
+  function inRange(date) {
+    const d = new Date(date);
+    if (filter==='all')   return true;
+    if (filter==='today') return d.toDateString()===now.toDateString();
+    if (filter==='week')  return (now-d)<=7*86400000;
+    return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+  }
+
+  const fTxns = allTransactions.filter(t => inRange(t.time));
+  const fExps = expenses.filter(e => inRange(e.time));
+  const active = duesData.filter(d => !d.paid);
+
+  const totalRev  = fTxns.reduce((s,t) => s+t.total, 0);
+  const totalExp  = fExps.reduce((s,e) => s+e.amount, 0);
+  const totalDues = active.reduce((s,d) => s+d.amount, 0);
+  const grossProfit = fTxns.reduce((s,t) =>
+    s + t.items.reduce((ps,item) => {
+      const p  = products.find(x=>x.name===item.name);
+      const pp = p?.purchasePrice || (p?.price||0)*0.75;
+      return ps + ((item.price||0) - pp) * item.qty;
+    }, 0), 0);
+  const netProfit = grossProfit - totalExp;
+  const margin    = totalRev>0 ? (netProfit/totalRev*100) : 0;
+
+  // KPI summary
+  _set('stmtRevenue',    `৳${_fmt(totalRev)}`);
+  _set('stmtRevenueNote',`${fTxns.length} transactions`);
+  _set('stmtExpenses',   `৳${_fmt(totalExp)}`);
+  _set('stmtExpNote',    `${fExps.length} records`);
+  _set('stmtDues',       `৳${_fmt(totalDues)}`);
+  _set('stmtDueNote',    `${active.length} active`);
+  _set('stmtNetProfit',  `৳${_fmt(netProfit)}`);
+  _set('stmtMarginNote', netProfit>=0 ? 'After all deductions' : 'Net loss');
+  _set('stmtMargin',     `${margin.toFixed(1)}%`);
+  _set('stmtMarginSub',  'vs revenue');
+
+  // Bar chart — group by label
+  function groupBy(arr, keyFn, valFn) {
+    const g = {};
+    arr.forEach(x => { const k=keyFn(x); g[k]=(g[k]||0)+valFn(x); });
+    return g;
+  }
+  const labelFn = t => {
+    const d = new Date(t.time||t);
+    if (filter==='today') return `${d.getHours()}h`;
+    if (filter==='week')  return d.toLocaleDateString('en-BD',{weekday:'short'});
+    return `Wk${Math.ceil(d.getDate()/7)}`;
+  };
+  const sGroups = groupBy(fTxns, labelFn, t=>t.total);
+  const eGroups = groupBy(fExps, labelFn, e=>e.amount);
+  const labels  = [...new Set([...Object.keys(sGroups),...Object.keys(eGroups)])];
+  const maxV    = Math.max(...labels.map(l=>Math.max(sGroups[l]||0,eGroups[l]||0)),1);
+
+  const barArea = document.getElementById('stmtBarChartArea');
+  if (barArea) {
+    if (!labels.length) {
+      barArea.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:160px;color:var(--text-muted);font-size:13px"><i class="fas fa-chart-bar" style="margin-right:8px;opacity:.4"></i>No data for this period</div>`;
+    } else {
+      const ySteps = [maxV, maxV*.75, maxV*.5, maxV*.25, 0].map(v => v>=1000?`৳${(v/1000).toFixed(0)}k`:`৳${v.toFixed(0)}`);
+      barArea.innerHTML = `
+        <div class="chart-area" style="height:170px">
+          <div class="chart-y-labels">${ySteps.map(l=>`<span>${l}</span>`).join('')}</div>
+          <div class="chart-bars-wrap">
+            ${labels.map((lbl,i)=>{
+              const sh=Math.round(((sGroups[lbl]||0)/maxV)*100);
+              const eh=Math.round(((eGroups[lbl]||0)/maxV)*100);
+              return `<div class="chart-bar-group" style="animation-delay:${i*0.07}s">
+                <div class="bar-pair">
+                  <div class="bar sales-bar"   style="--h:${sh}%;animation-delay:${i*0.07}s"></div>
+                  <div class="bar expense-bar" style="--h:${eh}%;animation-delay:${i*0.07+0.03}s"></div>
+                </div>
+                <span>${lbl}</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }
+  }
+
+  // Payment pie
+  const payData={};
+  fTxns.forEach(t=>{ payData[t.method]=(payData[t.method]||0)+t.total; });
+  drawPieChart('stmtPieCanvas', Object.entries(payData).map(([k,v])=>({label:k[0].toUpperCase()+k.slice(1),value:v})).filter(x=>x.value>0)||[{label:'No sales',value:1}], 'stmtPieLegend');
+
+  // Expense pie
+  const expData={};
+  fExps.forEach(e=>{ expData[e.type]=(expData[e.type]||0)+e.amount; });
+  drawPieChart('stmtExpPieCanvas', Object.entries(expData).map(([k,v])=>({label:k,value:v})).filter(x=>x.value>0)||[{label:'No expenses',value:1}], 'stmtExpPieLegend');
+
+  // Sales txn list
+  const txnList = document.getElementById('stmtTxnList');
+  if (txnList) {
+    _set('stmtTxnCount', `${fTxns.length} records`);
+    _set('stmtTxnTotal', `৳${totalRev.toFixed(2)}`);
+    txnList.innerHTML = fTxns.slice().reverse().map(t=>`
+      <div class="txn-detail-item">
+        <div class="txn-d-name">
+          <div class="txn-d-dot ${t.method}"></div>
+          <div><div>${t.customer||'Walk-in'}</div><div style="font-size:11px;color:var(--text-muted)">${t.invoiceNo||''}</div></div>
+        </div>
+        <div class="txn-d-time">${_fmtTm(t.time)}</div>
+        <div><span class="status-badge instock" style="font-size:10px">${(t.method||'').toUpperCase()}</span></div>
+        <div class="txn-d-amount">৳${t.total.toFixed(2)}</div>
+      </div>`).join('') || `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No transactions</div>`;
+  }
+
+  // Expense list
+  const expList = document.getElementById('stmtExpList');
+  if (expList) {
+    _set('stmtExpCount', `${fExps.length} records`);
+    _set('stmtExpTotal', `৳${totalExp.toFixed(2)}`);
+    expList.innerHTML = fExps.slice().reverse().map(e=>{
+      const col=EXP_TYPE_COLORS[e.type]||'#64748b';
+      const ico=EXP_TYPE_ICONS[e.type] ||'fa-tag';
+      return `<div class="txn-detail-item">
+        <div class="txn-d-name">
+          <i class="fas ${ico}" style="color:${col};width:16px;flex-shrink:0"></i>
+          <div><div>${e.type}</div><div style="font-size:11px;color:var(--text-muted)">${e.description||'—'}</div></div>
+        </div>
+        <div class="txn-d-time">${_fmtTm(e.time)}</div>
+        <div><span class="exp-type-chip" style="background:${col}18;color:${col};font-size:10px">${e.type}</span></div>
+        <div class="txn-d-amount" style="color:var(--danger)">৳${e.amount.toFixed(2)}</div>
+      </div>`;
+    }).join('') || `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No expenses</div>`;
+  }
+
+  // Dues list
+  const duesList = document.getElementById('stmtDueList');
+  if (duesList) {
+    _set('stmtDueCount', `${active.length} active`);
+    _set('stmtDueTotal', `৳${totalDues.toFixed(2)}`);
+    duesList.innerHTML = active.slice(0,8).map(d=>{
+      const st=_getDueStatus(d);
+      const dl=_getDaysLeft(d);
+      const dlabel = dl<0?`${Math.abs(dl)}d overdue`:`${dl}d left`;
+      return `<div class="txn-detail-item">
+        <div class="txn-d-name">
+          <div class="txn-d-dot" style="background:${dl<0?'var(--danger)':'var(--warning)'}"></div>
+          <div><div style="font-weight:500">${d.name}</div><div style="font-size:11px;color:var(--text-muted)">${d.type}</div></div>
+        </div>
+        <div><span class="days-badge ${st.cls}" style="font-size:10px">${dlabel}</span></div>
+        <div><span class="status-badge ${st.cls}" style="font-size:10px">${st.label}</span></div>
+        <div class="txn-d-amount" style="color:var(--warning)">৳${_fmt(d.amount)}</div>
+      </div>`;
+    }).join('') || `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No active dues 🎉</div>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//   DASHBOARD — Real-time
+// ══════════════════════════════════════════════════════════
+
+function drawPieChart(canvasId, data, legendId) {
+  const canvas = document.getElementById(canvasId);
+  const legend = document.getElementById(legendId);
+  if (!canvas || !legend) return;
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height, cx=W/2, cy=H/2, r=Math.min(W,H)/2-6;
+  ctx.clearRect(0,0,W,H);
+  const total = data.reduce((s,d)=>s+d.value,0);
+  if (!total) return;
+  const colors=['#6366f1','#22d3ee','#10b981','#f59e0b','#f43f5e','#8b5cf6','#06b6d4','#e879f9'];
+  let startAngle=-Math.PI/2;
+  data.forEach((d,i)=>{
+    const slice=(d.value/total)*Math.PI*2;
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,r,startAngle,startAngle+slice);
+    ctx.closePath(); ctx.fillStyle=colors[i%colors.length]; ctx.fill();
+    startAngle+=slice;
+  });
+  ctx.beginPath(); ctx.arc(cx,cy,r*0.52,0,Math.PI*2);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim() || '#fff';
+  ctx.fill();
+  legend.innerHTML = data.map((d,i)=>`
+    <div class="pie-legend-item">
+      <div class="pie-legend-dot" style="background:${colors[i%colors.length]}"></div>
+      <span>${d.label}</span>
+      <span class="pie-legend-val">${Math.round((d.value/total)*100)}%</span>
+    </div>`).join('');
+}
+
+function renderDashboard() {
+  const now   = new Date();
+  const today = now.toDateString();
+  const m     = now.getMonth(), y = now.getFullYear();
+
+  const todayTxns  = allTransactions.filter(t => new Date(t.time).toDateString()===today);
+  const todayExp   = expenses.filter(e => new Date(e.time).toDateString()===today);
+  const activeDues = duesData.filter(d => !d.paid);
+  const allMonthTxns = allTransactions.filter(t=>{ const d=new Date(t.time); return d.getMonth()===m&&d.getFullYear()===y; });
+
+  const todaySales  = todayTxns.reduce((s,t)=>s+t.total,0);
+  const todayExpAmt = todayExp.reduce((s,e)=>s+e.amount,0);
+  const grossProfit = todayTxns.reduce((s,t)=>s+t.items.reduce((ps,item)=>{
+    const p=products.find(x=>x.name===item.name);
+    const pp=p?.purchasePrice||(p?.price||0)*0.75;
+    return ps+((item.price||0)-pp)*item.qty;
+  },0),0);
+  const netProfit  = grossProfit - todayExpAmt;
+  const totalDues  = activeDues.reduce((s,d)=>s+d.amount,0);
+  const stockValue = products.reduce((s,p)=>s+(p.salesPrice||p.price)*p.stock,0);
+  const monthSales = allMonthTxns.reduce((s,t)=>s+t.total,0);
+
+  // KPI
+  _set('todaySales',    `৳${_fmt(todaySales)}`);
+  _set('todayRevenue',  `৳${_fmt(netProfit)}`);
+  _set('totalOrders',   todayTxns.length);
+  _set('kpiDuesAmt',    `৳${_fmt(totalDues)}`);
+  _set('kpiExpenseAmt', `৳${todayExpAmt.toFixed(0)}`);
+  _set('kpiStockVal',   `৳${(stockValue/1000).toFixed(1)}k`);
+
+  // KPI subtitles
+  _set('kpiSalesChange',    `${allTransactions.length} total orders`);
+  _set('kpiRevenueChange',  todayExpAmt>0?`After ৳${_fmt(todayExpAmt)} exp`:'Gross profit today');
+  _set('kpiOrderChange',    `৳${_fmt(monthSales)} this month`);
+  _set('kpiDuesChange',     `${activeDues.length} customers pending`);
+  _set('kpiExpenseChange',  `${expenses.length} total records`);
+  _set('kpiStockChange',    `${products.filter(p=>p.stock<=5).length} items low stock`);
+
+  // Date
+  _set('dashDate', now.toLocaleDateString('en-BD',{year:'numeric',month:'long',day:'numeric'}));
+
+  // Low stock count in navbar
+  const ls = products.filter(p=>p.stock<=5).length;
+  _set('lowStockCount', `${ls} Low Stock`);
+  _set('lowStockItems', ls);
+
+  // Recent transactions
+  const txnEl = document.getElementById('recentTxnList');
+  if (txnEl) {
+    txnEl.innerHTML = allTransactions.slice(-6).reverse().map(t=>`
+      <div class="txn-item">
+        <div class="txn-dot ${t.method}"></div>
+        <div class="txn-info">
+          <div class="txn-name">${t.customer||'Walk-in'}</div>
+          <div class="txn-time">${_fmtTm(t.time)}</div>
+        </div>
+        <div class="txn-amount">৳${t.total.toFixed(0)}</div>
+      </div>`).join('') || `<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px">No transactions yet</div>`;
+  }
+
+  // Top products
+  const pSales={};
+  allTransactions.forEach(t=>t.items.forEach(item=>{ pSales[item.name]=(pSales[item.name]||0)+item.qty; }));
+  const sorted=Object.entries(pSales).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const maxQ=sorted[0]?.[1]||1;
+  const tpEl = document.getElementById('topProductsList');
+  if (tpEl) {
+    tpEl.innerHTML = sorted.length ? sorted.map(([name,qty],i)=>`
+      <div class="top-product-item">
+        <div class="tp-rank">${i+1}</div>
+        <div class="tp-info"><div class="tp-name">${name}</div><div class="tp-qty">${qty} units</div></div>
+        <div class="tp-bar-wrap"><div class="tp-bar"><div class="tp-bar-fill" style="width:${Math.round((qty/maxQ)*100)}%"></div></div></div>
+      </div>`).join('') : `<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px">No sales yet</div>`;
+  }
+
+  // Stock alerts
+  const alerts=products.filter(p=>p.stock<=10).sort((a,b)=>a.stock-b.stock);
+  const saEl=document.getElementById('stockAlertList');
+  if (saEl) {
+    saEl.innerHTML=alerts.length?alerts.map(p=>`
+      <div class="stock-alert-item">
+        <div class="sa-icon ${p.stock<=3?'danger':'warning'}"><i class="fas fa-exclamation-triangle"></i></div>
+        <div class="sa-info"><div class="sa-name">${p.name}</div><div class="sa-stock">${p.stock} ${p.unit} remaining</div></div>
+        <span class="sa-badge ${p.stock<=3?'critical':'low'}">${p.stock<=3?'Critical':'Low'}</span>
+      </div>`).join('') : `<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px">No alerts 🎉</div>`;
+    document.getElementById('lowStockItems') && (document.getElementById('lowStockItems').textContent=alerts.length);
+  }
+
+  // Pie charts
+  const payMap={};
+  allTransactions.forEach(t=>{ payMap[t.method]=(payMap[t.method]||0)+t.total; });
+  const piePay=Object.entries(payMap).filter(([,v])=>v>0).map(([k,v])=>({label:k[0].toUpperCase()+k.slice(1),value:v}));
+  drawPieChart('pieCanvas', piePay.length?piePay:[{label:'No data',value:1}], 'pieLegend');
+
+  const catMap={};
+  allTransactions.forEach(t=>t.items.forEach(item=>{
+    const p=products.find(x=>x.name===item.name);
+    const cat=p?.category||'Other';
+    catMap[cat]=(catMap[cat]||0)+item.qty;
+  }));
+  const pieCat=Object.entries(catMap).filter(([,v])=>v>0).map(([k,v])=>({label:k,value:v}));
+  drawPieChart('catCanvas', pieCat.length?pieCat:[{label:'No data',value:1}], 'catLegend');
+
+  // Quick stats
+  const overdueCnt=activeDues.filter(d=>_getDaysLeft(d)<0).length;
+  const itemsSold=todayTxns.reduce((s,t)=>s+t.items.reduce((p,i)=>p+i.qty,0),0);
+  const avgOrder=todayTxns.length?(todaySales/todayTxns.length):0;
+  const qsEl=document.getElementById('quickStatsList');
+  if (qsEl) {
+    qsEl.innerHTML=[
+      {icon:'fa-shopping-basket', label:'Avg Order (Today)',  val:`৳${avgOrder.toFixed(0)}`},
+      {icon:'fa-money-bill',      label:'Cash Txns Today',    val:todayTxns.filter(t=>t.method==='cash').length},
+      {icon:'fa-exclamation',     label:'Overdue Dues',       val:overdueCnt},
+      {icon:'fa-box',             label:'Items Sold Today',   val:itemsSold},
+      {icon:'fa-chart-line',      label:'Monthly Revenue',    val:`৳${_fmt(monthSales)}`},
+      {icon:'fa-coins',           label:'Total Expenses',     val:`৳${_fmt(expenses.reduce((s,e)=>s+e.amount,0))}`},
+    ].map(qs=>`<div class="qs-item"><div class="qs-label"><i class="fas ${qs.icon}"></i>${qs.label}</div><div class="qs-value">${qs.val}</div></div>`).join('');
+  }
+}
+
+// ── Overrides & hooks ──────────────────────────────────── */
+
+// Statement filter
+function filterStatement() { renderStatement(); }
+function downloadStatement() { showToast('Generating PDF...', 'info'); setTimeout(()=>showToast('PDF ready!','success'),1500); }
+
+// switchTab hook — render target tab when opened
+const __baseSwitchTab = typeof switchTab === 'function' ? switchTab : null;
 switchTab = function(tabName, el) {
-  _origSwitchTab(tabName, el);
-  if (tabName === 'expenses') renderExpenses();
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  const targetEl = el || document.getElementById(`tab-${tabName}`);
+  if (targetEl) targetEl.classList.add('active');
+  const pane = document.getElementById(tabName+'Tab');
+  if (pane) pane.classList.add('active');
+  if (tabName==='dashboard') renderDashboard();
+  if (tabName==='statement') renderStatement();
+  if (tabName==='expenses')  renderExpenses();
+  if (tabName==='dues')      renderDuesTab();
 };
 
-// Also hook statement to show expenses
-const _origRenderStatement = renderStatementTransactions;
-renderStatementTransactions = function() {
-  _origRenderStatement();
-  // Inject expense total into statement footer if element exists
-  const expTotal = expenses.reduce((s, e) => s + e.amount, 0);
-  const txnTotal = allTransactions.reduce((s, t) => s + t.total, 0);
-  const netProfit = txnTotal - expTotal;
+// Sync button
+function syncData() {
+  const btn=document.querySelector('.sync-btn');
+  if (btn) { btn.classList.add('syncing'); btn.querySelector('span').textContent='Syncing...'; }
+  setTimeout(()=>{
+    if (btn) { btn.classList.remove('syncing'); btn.querySelector('span').textContent='Sync'; }
+    showToast('Data synced ✓', 'success');
+  }, 1800);
+}
 
-  // Update statement summary cards dynamically
-  const expRow = document.getElementById('statementExpenseRow');
-  if (expRow) {
-    expRow.textContent = `৳${expTotal.toFixed(2)}`;
-  }
-  const netRow = document.getElementById('statementNetProfit');
-  if (netRow) {
-    netRow.textContent = `৳${Math.max(0, netProfit).toFixed(2)}`;
-  }
+// Inventory: add purchasePrice/salesPrice support
+renderInventory = function(list) {
+  list = list || products;
+  const tbody = document.getElementById('inventoryTableBody');
+  if (!tbody) return;
+  let totalValue=0;
+  tbody.innerHTML = list.map(p=>{
+    const val=(p.salesPrice||p.price)*p.pieces;
+    totalValue+=val;
+    const status=p.pieces>10?'instock':'lowstock';
+    let sc='high';
+    if(p.pieces<=3)sc='critical'; else if(p.pieces<=5)sc='low'; else if(p.pieces<=15)sc='medium';
+    return `<tr>
+      <td><strong>${p.name}</strong></td>
+      <td>${p.category}</td>
+      <td><div class="price-two-col"><div class="purchase-price">Buy: <span>৳${p.purchasePrice||Math.round((p.price||0)*0.75)}</span></div></div></td>
+      <td><div class="sales-price">৳${p.salesPrice||p.price}</div></td>
+      <td><span class="stock-highlight ${sc}">${p.pieces} ${p.unit}</span></td>
+      <td>৳${val.toFixed(2)}</td>
+      <td><span class="status-badge ${status}">${p.pieces>10?'In Stock':'Low Stock'}</span></td>
+      <td class="action-icons">
+        <i class="fas fa-edit" onclick="editProduct(${p.id})"></i>
+        <i class="fas fa-trash-alt" onclick="deleteProduct(${p.id})"></i>
+      </td>
+    </tr>`;
+  }).join('');
+  _set('totalStockValue', `৳${totalValue.toFixed(2)}`);
+  _set('totalProducts', list.length);
+  _set('lowStockItems2', list.filter(p=>p.pieces<=10).length);
 };
 
-// Initialize expenses on load
+// Barcode stubs
+function triggerBarcodeScan() { showToast('Barcode Scanner: Connect USB/camera scanner', 'info'); }
+function triggerInventoryBarcode() { showToast('Inventory Barcode Scanner: Connect USB/camera scanner', 'info'); }
+
+// Add Product
+function showAddProductModal() {
+  document.getElementById('addProductModal').classList.add('show');
+  ['newProductPurchasePrice','newProductSalesPrice'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('input', updateProfitPreview);
+  });
+}
+function closeAddProductModal() {
+  document.getElementById('addProductModal').classList.remove('show');
+  ['newProductName','newProductPurchasePrice','newProductSalesPrice','newProductStock'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  const sel=document.getElementById('newProductCategory'); if(sel) sel.value='';
+  const pp=document.getElementById('profitPreview'); if(pp) pp.style.display='none';
+}
+function updateProfitPreview() {
+  const pp=parseFloat(document.getElementById('newProductPurchasePrice')?.value)||0;
+  const sp=parseFloat(document.getElementById('newProductSalesPrice')?.value)||0;
+  const prev=document.getElementById('profitPreview');
+  if(pp>0&&sp>0&&prev){
+    _set('profitPerUnit',`৳${(sp-pp).toFixed(2)}`);
+    _set('profitMargin', `${((sp-pp)/sp*100).toFixed(1)}%`);
+    prev.style.display='flex';
+  } else if(prev) prev.style.display='none';
+}
+function saveNewProduct() {
+  const name=document.getElementById('newProductName')?.value.trim();
+  const category=document.getElementById('newProductCategory')?.value;
+  const pp=parseFloat(document.getElementById('newProductPurchasePrice')?.value);
+  const sp=parseFloat(document.getElementById('newProductSalesPrice')?.value);
+  const stock=parseInt(document.getElementById('newProductStock')?.value)||0;
+  const unit=document.getElementById('newProductUnit')?.value||'pcs';
+  if(!name){showToast('Product name required','error');return;}
+  if(!category){showToast('Category required','error');return;}
+  if(isNaN(pp)||pp<0){showToast('Valid purchase price required','error');return;}
+  if(isNaN(sp)||sp<0){showToast('Valid sales price required','error');return;}
+  const newId=Math.max(...products.map(p=>p.id))+1;
+  products.push({id:newId,name,category,price:sp,salesPrice:sp,purchasePrice:pp,unit,stock,pieces:stock});
+  renderInventory(); renderProducts(); updateLowStockCount();
+  closeAddProductModal();
+  showToast(`"${name}" added!`, 'success');
+}
+
+// Cart override with VAT input support
+const __origRenderCart = typeof renderCart==='function'?renderCart:null;
+renderCart = function() {
+  const container=document.getElementById('cartItems');
+  const countBadge=document.getElementById('cartCount');
+  if(!container) return;
+  if(!cart.length){
+    container.innerHTML=`<div class="empty-cart"><i class="fas fa-shopping-cart"></i><p>Cart is empty</p><span>Select products to add</span></div>`;
+    _set('cartSubtotal','৳0'); _set('cartVat','৳0'); _set('cartTotal','৳0');
+    if(countBadge) countBadge.textContent='0 items';
+    return;
+  }
+  let subtotal=0;
+  container.innerHTML=cart.map((item,i)=>{
+    const it=item.price*item.quantity; subtotal+=it;
+    return `<div class="cart-item">
+      <div class="cart-item-info">
+        <h4>${item.name}</h4>
+        <p>৳${item.price}/${item.unit} × ${item.displayQuantity}</p>
+      </div>
+      <div class="cart-item-actions">
+        <span><strong>৳${it.toFixed(2)}</strong></span>
+        <div class="qty-control">
+          <button class="qty-btn" onclick="updateCartItem(${i},-1)">−</button>
+          <span>${item.quantity%1===0?item.quantity:item.quantity.toFixed(2)}</span>
+          <button class="qty-btn" onclick="updateCartItem(${i},1)">+</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  const vatPct=parseFloat(document.getElementById('vatInput')?.value)||0;
+  const discount=parseFloat(document.getElementById('discountInput')?.value)||0;
+  const vat=subtotal*(vatPct/100);
+  const total=Math.max(0,subtotal+vat-discount);
+  _set('cartSubtotal',`৳${subtotal.toFixed(2)}`);
+  _set('cartVat',`৳${vat.toFixed(2)}`);
+  _set('cartTotal',`৳${total.toFixed(2)}`);
+  if(countBadge) countBadge.textContent=`${cart.length} item${cart.length!==1?'s':''}`;
+};
+
+computeTotal = function() {
+  const sub=cart.reduce((s,i)=>s+i.price*i.quantity,0);
+  const vat=sub*(parseFloat(document.getElementById('vatInput')?.value)||0)/100;
+  const dis=parseFloat(document.getElementById('discountInput')?.value)||0;
+  return Math.max(0,sub+vat-dis);
+};
+
+// Checkout override with due validation
+processCheckout = function() {
+  if(!cart.length){showToast('Cart is empty!','error');return;}
+  if(selectedPayment==='due'){
+    const n=document.getElementById('dueCustomerName')?.value.trim();
+    const p=document.getElementById('dueCustomerPhone')?.value.trim();
+    if(!n){showToast('Customer name required for Due purchase!','error');document.getElementById('dueCustomerName')?.focus();return;}
+    if(!p){showToast('Phone number required for Due purchase!','error');document.getElementById('dueCustomerPhone')?.focus();return;}
+  }
+  if(selectedPayment==='bkash'||selectedPayment==='nagad') showQRModal();
+  else completeTransaction();
+};
+
+completeTransaction = function() {
+  let customerName, customerPhone;
+  if(selectedPayment==='due'){
+    customerName=document.getElementById('dueCustomerName')?.value.trim()||'Due Customer';
+    customerPhone=document.getElementById('dueCustomerPhone')?.value.trim()||'';
+  } else {
+    customerName=document.getElementById('customerName')?.value.trim()||'Walk-in';
+    customerPhone=document.getElementById('customerPhone')?.value.trim()||'';
+  }
+  const vatPct=parseFloat(document.getElementById('vatInput')?.value)||0;
+  const discount=parseFloat(document.getElementById('discountInput')?.value)||0;
+  let subtotal=cart.reduce((s,i)=>s+i.price*i.quantity,0);
+  const vat=subtotal*(vatPct/100);
+  const total=Math.max(0,subtotal+vat-discount);
+  const invoiceNo=`INV-2025-${String(invoiceCounter).padStart(3,'0')}`;
+  const dueDays=parseInt(document.getElementById('duePeriodDays')?.value)||0;
+  const txn={id:invoiceCounter,invoiceNo,customer:customerName,phone:customerPhone,method:selectedPayment,
+    items:cart.map(i=>({name:i.name,price:i.price,qty:i.quantity,unit:i.unit})),
+    subtotal,vat,vatPct,discount,total,time:new Date(),dueDays};
+  allTransactions.push(txn);
+
+  // Auto-add to dues if payment is 'due'
+  if(selectedPayment==='due'&&customerName&&total>0){
+    duesData.unshift({id:dueIdCounter++,name:customerName,phone:customerPhone,type:'Product Purchase',
+      amount:total,period:dueDays||30,addedDate:new Date(),paid:false,paidDate:null,note:invoiceNo});
+    renderDuesTab();
+  }
+
+  cart.forEach(ci=>{
+    const p=products.find(x=>x.id===ci.id);
+    if(p){p.stock=Math.max(0,p.stock-ci.quantity);p.pieces=p.stock;}
+  });
+  invoiceCounter++;
+  updateInvoiceNumber();
+  showReceipt(txn);
+  cart=[];
+  renderCart();
+  const disc=document.getElementById('discountInput'); if(disc) disc.value='';
+  const cn=document.getElementById('customerName'); if(cn) cn.value='';
+  const cp=document.getElementById('customerPhone'); if(cp) cp.value='';
+  const dcn=document.getElementById('dueCustomerName'); if(dcn) dcn.value='';
+  const dcp=document.getElementById('dueCustomerPhone'); if(dcp) dcp.value='';
+  renderInventory(); updateLowStockCount(); renderDashboard();
+};
+
+// ── Initialization ─────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
+  products.forEach(p=>{
+    if(!p.purchasePrice) p.purchasePrice=Math.round((p.price||0)*0.75);
+    if(!p.salesPrice)    p.salesPrice=p.price;
+  });
+  renderDuesTab();
   renderExpenses();
+  renderDashboard();
+  renderStatement();
+  updateInvoiceNumber();
 });

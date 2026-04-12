@@ -67,7 +67,7 @@
             <div class="brand-icon"><i class="fas fa-store-alt"></i></div>
             <div class="brand-text">
               <span class="brand-name">SmartRetail</span>
-              <span class="brand-tag">POS v2.0</span>
+              <span class="brand-tag">POS v6.0</span>
             </div>
           </div>
           <div class="nav-tabs">
@@ -137,7 +137,7 @@
               <div class="kpi-body">
                 <span class="kpi-label">Today's Sales</span>
                 <h3 class="kpi-value" id="todaySales">৳0</h3>
-                <span class="kpi-change positive"><i class="fas fa-arrow-up"></i> 12% vs yesterday</span>
+                <span class="kpi-change" id="kpiSalesChange"><i class="fas fa-arrow-up"></i> loading...</span>
               </div>
               <div class="kpi-sparkline">
                 <svg viewBox="0 0 80 30"><polyline points="0,25 15,20 30,22 45,10 60,15 80,5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
@@ -146,9 +146,9 @@
             <div class="kpi-card kpi-revenue animate-in" style="--delay:0.1s">
               <div class="kpi-icon"><i class="fas fa-coins"></i></div>
               <div class="kpi-body">
-                <span class="kpi-label">Today's Revenue</span>
+                <span class="kpi-label">Net Profit</span>
                 <h3 class="kpi-value" id="todayRevenue">৳0</h3>
-                <span class="kpi-change positive"><i class="fas fa-arrow-up"></i> 8% profit margin</span>
+                <span class="kpi-change" id="kpiRevenueChange"><i class="fas fa-arrow-up"></i> loading...</span>
               </div>
               <div class="kpi-sparkline">
                 <svg viewBox="0 0 80 30"><polyline points="0,28 15,22 30,18 45,14 60,8 80,4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
@@ -159,7 +159,7 @@
               <div class="kpi-body">
                 <span class="kpi-label">Total Orders</span>
                 <h3 class="kpi-value" id="totalOrders">0</h3>
-                <span class="kpi-change positive"><i class="fas fa-arrow-up"></i> 5 more than avg</span>
+                <span class="kpi-change" id="kpiOrderChange"><i class="fas fa-arrow-up"></i> loading...</span>
               </div>
               <div class="kpi-sparkline">
                 <svg viewBox="0 0 80 30"><polyline points="0,20 20,15 40,18 55,8 70,12 80,6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
@@ -169,11 +169,33 @@
               <div class="kpi-icon"><i class="fas fa-clock"></i></div>
               <div class="kpi-body">
                 <span class="kpi-label">Pending Dues</span>
-                <h3 class="kpi-value">৳12,550</h3>
-                <span class="kpi-change negative"><i class="fas fa-arrow-down"></i> 3 overdue accounts</span>
+                <h3 class="kpi-value" id="kpiDuesAmt">৳0</h3>
+                <span class="kpi-change negative" id="kpiDuesChange"><i class="fas fa-arrow-down"></i> loading...</span>
               </div>
               <div class="kpi-sparkline">
                 <svg viewBox="0 0 80 30"><polyline points="0,5 20,12 40,10 55,18 70,14 80,20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+              </div>
+            </div>
+            <div class="kpi-card kpi-expense animate-in" style="--delay:0.25s">
+              <div class="kpi-icon"><i class="fas fa-file-invoice"></i></div>
+              <div class="kpi-body">
+                <span class="kpi-label">Today's Expenses</span>
+                <h3 class="kpi-value" id="kpiExpenseAmt">৳0</h3>
+                <span class="kpi-change negative" id="kpiExpenseChange"><i class="fas fa-arrow-up"></i> loading...</span>
+              </div>
+              <div class="kpi-sparkline">
+                <svg viewBox="0 0 80 30"><polyline points="0,10 20,14 40,12 55,18 70,16 80,22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+              </div>
+            </div>
+            <div class="kpi-card kpi-stock animate-in" style="--delay:0.3s">
+              <div class="kpi-icon"><i class="fas fa-warehouse"></i></div>
+              <div class="kpi-body">
+                <span class="kpi-label">Stock Value</span>
+                <h3 class="kpi-value" id="kpiStockVal">৳0</h3>
+                <span class="kpi-change" id="kpiStockChange"><i class="fas fa-layer-group"></i> loading...</span>
+              </div>
+              <div class="kpi-sparkline">
+                <svg viewBox="0 0 80 30"><polyline points="0,15 20,13 40,16 55,10 70,12 80,8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
               </div>
             </div>
           </div>
@@ -477,82 +499,67 @@
               <i class="fas fa-plus"></i> Add Due
             </button>
           </div>
+
+          <!-- Stats Row -->
           <div class="dues-stats-grid animate-in" style="--delay:0.05s">
             <div class="due-stat-card">
               <div class="due-stat-icon"><i class="fas fa-users"></i></div>
               <div>
-                <span class="due-stat-label">Total Customers</span>
-                <div class="due-stat-value">3</div>
+                <span class="due-stat-label">Active Dues</span>
+                <div class="due-stat-value" id="dueStatActive">0</div>
               </div>
             </div>
             <div class="due-stat-card overdue">
               <div class="due-stat-icon"><i class="fas fa-exclamation-circle"></i></div>
               <div>
-                <span class="due-stat-label">Total Dues</span>
-                <div class="due-stat-value">৳12,550</div>
+                <span class="due-stat-label">Total Outstanding</span>
+                <div class="due-stat-value" id="dueStatTotal">৳0</div>
               </div>
             </div>
             <div class="due-stat-card active">
               <div class="due-stat-icon"><i class="fas fa-check-circle"></i></div>
               <div>
-                <span class="due-stat-label">Collected Today</span>
-                <div class="due-stat-value">৳3,200</div>
+                <span class="due-stat-label">Total Collected</span>
+                <div class="due-stat-value" id="dueStatCollected">৳0</div>
               </div>
             </div>
           </div>
+
+          <!-- Active Dues Table -->
           <div class="dues-table-wrapper animate-in" style="--delay:0.1s">
+            <div class="dues-section-title"><i class="fas fa-clock"></i> Active Dues</div>
             <table class="dues-table">
               <thead>
                 <tr>
                   <th>Customer</th>
-                  <th>Phone</th>
-                  <th>Due Amount</th>
+                  <th>Type</th>
+                  <th>Amount</th>
                   <th>Due Date</th>
                   <th>Days Left</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
-              <tbody id="duesTableBody">
-                <tr class="due-row">
-                  <td><div class="customer-cell"><div class="cust-avatar">AK</div>Abdul Karim</div></td>
-                  <td>01712-345678</td>
-                  <td class="amount-cell">৳3,200</td>
-                  <td>2025-01-20</td>
-                  <td><span class="days-badge overdue">-5 days</span></td>
-                  <td><span class="status-badge overdue">Overdue</span></td>
-                  <td class="action-icons">
-                    <button class="due-action-btn success" title="Mark Paid" onclick="markDuePaid(this)"><i class="fas fa-check"></i></button>
-                    <button class="due-action-btn info" title="Call" onclick="callCustomer('01712-345678')"><i class="fas fa-phone"></i></button>
-                    <button class="due-action-btn warning" title="WhatsApp" onclick="whatsappCustomer('01712-345678')"><i class="fab fa-whatsapp"></i></button>
-                  </td>
+              <tbody id="duesTableBody"></tbody>
+            </table>
+          </div>
+
+          <!-- Paid Dues Table -->
+          <div class="dues-table-wrapper animate-in paid-dues-section" style="--delay:0.15s; margin-top:16px">
+            <div class="dues-section-title paid"><i class="fas fa-check-double"></i> Paid Dues</div>
+            <table class="dues-table">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Due Date</th>
+                  <th>Paid On</th>
+                  <th>Status</th>
                 </tr>
-                <tr class="due-row">
-                  <td><div class="customer-cell"><div class="cust-avatar">RB</div>Rahima Begum</div></td>
-                  <td>01823-987654</td>
-                  <td class="amount-cell">৳1,850</td>
-                  <td>2025-01-28</td>
-                  <td><span class="days-badge pending">3 days</span></td>
-                  <td><span class="status-badge pending">Pending</span></td>
-                  <td class="action-icons">
-                    <button class="due-action-btn success" title="Mark Paid" onclick="markDuePaid(this)"><i class="fas fa-check"></i></button>
-                    <button class="due-action-btn info" title="Call" onclick="callCustomer('01823-987654')"><i class="fas fa-phone"></i></button>
-                    <button class="due-action-btn warning" title="WhatsApp" onclick="whatsappCustomer('01823-987654')"><i class="fab fa-whatsapp"></i></button>
-                  </td>
-                </tr>
-                <tr class="due-row">
-                  <td><div class="customer-cell"><div class="cust-avatar">SI</div>Shahidul Islam</div></td>
-                  <td>01911-234567</td>
-                  <td class="amount-cell">৳7,500</td>
-                  <td>2025-01-15</td>
-                  <td><span class="days-badge critical">-10 days</span></td>
-                  <td><span class="status-badge critical">Critical</span></td>
-                  <td class="action-icons">
-                    <button class="due-action-btn success" title="Mark Paid" onclick="markDuePaid(this)"><i class="fas fa-check"></i></button>
-                    <button class="due-action-btn info" title="Call" onclick="callCustomer('01911-234567')"><i class="fas fa-phone"></i></button>
-                    <button class="due-action-btn warning" title="WhatsApp" onclick="whatsappCustomer('01911-234567')"><i class="fab fa-whatsapp"></i></button>
-                  </td>
-                </tr>
+              </thead>
+              <tbody id="paidDuesTableBody">
+                <tr><td colspan="6"><div class="exp-list-empty"><i class="fas fa-check-circle"></i><p>No paid dues yet</p></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -697,15 +704,14 @@
           <div class="statement-top animate-in">
             <div>
               <h2 class="page-title">Financial Statement</h2>
-              <p class="page-sub">Detailed income and expense breakdown</p>
+              <p class="page-sub">Complete business overview — sales, dues, expenses</p>
             </div>
             <div class="statement-controls">
-              <select class="month-selector" id="statementMonth" onchange="filterStatement()">
+              <select class="month-selector" id="statementMonth" onchange="renderStatement()">
                 <option value="all">All Time</option>
-                <option value="2025-04" selected>April 2025</option>
-                <option value="2025-03">March 2025</option>
-                <option value="2025-02">February 2025</option>
-                <option value="2025-01">January 2025</option>
+                <option value="today">Today</option>
+                <option value="week">This Week</option>
+                <option value="month" selected>This Month</option>
               </select>
               <button class="btn-secondary" onclick="printStatement()">
                 <i class="fas fa-print"></i> Print
@@ -716,106 +722,217 @@
             </div>
           </div>
 
-          <!-- Statement Summary -->
-          <div class="statement-summary animate-in" style="--delay:0.1s">
-            <div class="summary-card gradient-blue">
+          <!-- KPI Summary Row -->
+          <div class="stmt-kpi-row animate-in" style="--delay:0.05s">
+            <div class="stmt-kpi gradient-blue">
               <div class="sc-icon"><i class="fas fa-chart-line"></i></div>
               <div class="sc-body">
-                <span>Total Sales</span>
-                <h3>৳1,89,450</h3>
-                <small>↑ 12% vs last month</small>
+                <span>Total Revenue</span>
+                <h3 id="stmtRevenue">৳0</h3>
+                <small id="stmtRevenueNote">0 transactions</small>
               </div>
             </div>
-            <div class="summary-card gradient-green">
-              <div class="sc-icon"><i class="fas fa-coins"></i></div>
+            <div class="stmt-kpi gradient-orange">
+              <div class="sc-icon"><i class="fas fa-receipt"></i></div>
               <div class="sc-body">
-                <span>Gross Profit</span>
-                <h3>৳42,800</h3>
-                <small>22.6% margin</small>
+                <span>Total Expenses</span>
+                <h3 id="stmtExpenses">৳0</h3>
+                <small id="stmtExpNote">0 records</small>
               </div>
             </div>
-            <div class="summary-card gradient-purple">
+            <div class="stmt-kpi gradient-red">
               <div class="sc-icon"><i class="fas fa-wallet"></i></div>
               <div class="sc-body">
-                <span>Net Profit</span>
-                <h3>৳35,620</h3>
-                <small>After expenses</small>
+                <span>Pending Dues</span>
+                <h3 id="stmtDues">৳0</h3>
+                <small id="stmtDueNote">0 active</small>
               </div>
             </div>
-            <div class="summary-card gradient-orange">
+            <div class="stmt-kpi gradient-green">
+              <div class="sc-icon"><i class="fas fa-coins"></i></div>
+              <div class="sc-body">
+                <span>Net Profit</span>
+                <h3 id="stmtNetProfit">৳0</h3>
+                <small id="stmtMarginNote">After all deductions</small>
+              </div>
+            </div>
+            <div class="stmt-kpi gradient-purple">
               <div class="sc-icon"><i class="fas fa-percent"></i></div>
               <div class="sc-body">
                 <span>Profit Margin</span>
-                <h3>18.8%</h3>
-                <small>↑ 2.1% this month</small>
+                <h3 id="stmtMargin">0%</h3>
+                <small id="stmtMarginSub">vs revenue</small>
               </div>
             </div>
           </div>
 
-          <!-- Chart -->
-          <div class="statement-body animate-in" style="--delay:0.2s">
-            <div class="chart-card">
+          <!-- Charts Row -->
+          <div class="stmt-charts-row animate-in" style="--delay:0.1s">
+            <!-- Sales vs Expense Bar Chart -->
+            <div class="chart-card stmt-bar-card">
               <div class="chart-card-header">
-                <h4><i class="fas fa-chart-bar"></i> Weekly Sales Trend</h4>
+                <h4><i class="fas fa-chart-bar"></i> Revenue vs Expense</h4>
                 <div class="chart-legend">
-                  <span><i></i>Sales</span>
-                  <span class="exp"><i></i>Expense</span>
+                  <span><i style="background:var(--primary)"></i>Sales</span>
+                  <span class="exp"><i style="background:#f59e0b"></i>Expense</span>
                 </div>
               </div>
-              <div class="chart-area">
-                <div class="chart-y-labels">
-                  <span>৳60k</span><span>৳45k</span><span>৳30k</span><span>৳15k</span><span>৳0</span>
-                </div>
-                <div class="chart-bars-wrap">
-                  <div class="chart-bar-group">
-                    <div class="bar-pair">
-                      <div class="bar sales-bar" style="--h:72%"></div>
-                      <div class="bar expense-bar" style="--h:40%"></div>
-                    </div>
-                    <span>Week 1</span>
-                  </div>
-                  <div class="chart-bar-group">
-                    <div class="bar-pair">
-                      <div class="bar sales-bar" style="--h:88%"></div>
-                      <div class="bar expense-bar" style="--h:50%"></div>
-                    </div>
-                    <span>Week 2</span>
-                  </div>
-                  <div class="chart-bar-group">
-                    <div class="bar-pair">
-                      <div class="bar sales-bar" style="--h:78%"></div>
-                      <div class="bar expense-bar" style="--h:45%"></div>
-                    </div>
-                    <span>Week 3</span>
-                  </div>
-                  <div class="chart-bar-group">
-                    <div class="bar-pair">
-                      <div class="bar sales-bar" style="--h:100%"></div>
-                      <div class="bar expense-bar" style="--h:55%"></div>
-                    </div>
-                    <span>Week 4</span>
-                  </div>
-                </div>
+              <div id="stmtBarChartArea" class="stmt-bar-area"></div>
+            </div>
+
+            <!-- Payment Method Donut -->
+            <div class="chart-card stmt-donut-card">
+              <div class="chart-card-header">
+                <h4><i class="fas fa-chart-pie"></i> Payment Methods</h4>
+              </div>
+              <div class="pie-chart-wrap" style="padding:16px 12px">
+                <canvas id="stmtPieCanvas" width="130" height="130"></canvas>
+                <div class="pie-legend" id="stmtPieLegend"></div>
               </div>
             </div>
 
-            <!-- Transaction Detail List -->
+            <!-- Expense Breakdown Donut -->
+            <div class="chart-card stmt-donut-card">
+              <div class="chart-card-header">
+                <h4><i class="fas fa-chart-pie"></i> Expense Breakdown</h4>
+              </div>
+              <div class="pie-chart-wrap" style="padding:16px 12px">
+                <canvas id="stmtExpPieCanvas" width="130" height="130"></canvas>
+                <div class="pie-legend" id="stmtExpPieLegend"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Breakdown Tables Row -->
+          <div class="stmt-tables-row animate-in" style="--delay:0.15s">
+            <!-- Sales Breakdown -->
             <div class="txn-detail-card">
               <div class="txn-detail-header">
-                <h4><i class="fas fa-list-alt"></i> Transaction Details</h4>
-                <span class="txn-count" id="txnCount">0 records</span>
+                <h4><i class="fas fa-shopping-cart"></i> Sales Transactions</h4>
+                <span class="txn-count" id="stmtTxnCount">0 records</span>
               </div>
-              <div class="txn-detail-list" id="txnDetailList">
-                <!-- injected by JS -->
-              </div>
+              <div class="txn-detail-list" id="stmtTxnList" style="max-height:220px"></div>
               <div class="txn-detail-footer">
                 <div class="txn-footer-total">
-                  <span>Month Total</span>
-                  <strong id="txnFooterTotal">৳0</strong>
+                  <span>Total Sales</span>
+                  <strong id="stmtTxnTotal">৳0</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Expense List -->
+            <div class="txn-detail-card">
+              <div class="txn-detail-header">
+                <h4><i class="fas fa-receipt"></i> Expense Records</h4>
+                <span class="txn-count" id="stmtExpCount">0 records</span>
+              </div>
+              <div class="txn-detail-list" id="stmtExpList" style="max-height:220px"></div>
+              <div class="txn-detail-footer">
+                <div class="txn-footer-total">
+                  <span>Total Expenses</span>
+                  <strong id="stmtExpTotal">৳0</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dues Summary -->
+            <div class="txn-detail-card">
+              <div class="txn-detail-header">
+                <h4><i class="fas fa-wallet"></i> Due Accounts</h4>
+                <span class="txn-count" id="stmtDueCount">0 active</span>
+              </div>
+              <div class="txn-detail-list" id="stmtDueList" style="max-height:220px"></div>
+              <div class="txn-detail-footer">
+                <div class="txn-footer-total">
+                  <span>Pending Dues</span>
+                  <strong id="stmtDueTotal">৳0</strong>
                 </div>
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================== ADD DUE MODAL ======================== -->
+    <div class="modal" id="addDueModal">
+      <div class="modal-content add-due-modal">
+        <div class="modal-header">
+          <h3><i class="fas fa-plus-circle"></i> Add New Due (Baki)</h3>
+          <button class="modal-close" onclick="closeAddDueModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="add-due-body">
+          <!-- Customer Info -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Customer Name <span class="required-star">*</span></label>
+              <input type="text" id="dueFormName" placeholder="Full name">
+            </div>
+            <div class="form-group">
+              <label>Phone Number <span class="required-star">*</span></label>
+              <input type="text" id="dueFormPhone" placeholder="01XXXXXXXXX">
+            </div>
+          </div>
+
+          <!-- Due Type -->
+          <div>
+            <label class="form-group" style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;display:block">Due Type <span class="required-star">*</span></label>
+            <div class="due-type-grid">
+              <button class="due-type-btn" data-dtype="Dhaar/Cash" onclick="selectDueType(this)">
+                <i class="fas fa-money-bill-wave"></i><span>Dhaar/Cash</span>
+              </button>
+              <button class="due-type-btn" data-dtype="Product Purchase" onclick="selectDueType(this)">
+                <i class="fas fa-shopping-bag"></i><span>Product Buy</span>
+              </button>
+              <button class="due-type-btn" data-dtype="Advance Order" onclick="selectDueType(this)">
+                <i class="fas fa-clipboard-list"></i><span>Advance Order</span>
+              </button>
+              <button class="due-type-btn" data-dtype="Service Fee" onclick="selectDueType(this)">
+                <i class="fas fa-cogs"></i><span>Service Fee</span>
+              </button>
+              <button class="due-type-btn" data-dtype="Old Balance" onclick="selectDueType(this)">
+                <i class="fas fa-history"></i><span>Old Balance</span>
+              </button>
+              <button class="due-type-btn" data-dtype="Others" onclick="selectDueType(this)">
+                <i class="fas fa-ellipsis-h"></i><span>Others</span>
+              </button>
+            </div>
+            <input type="hidden" id="dueFormType" value="">
+          </div>
+
+          <!-- Due Period -->
+          <div>
+            <label class="form-group" style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;display:block">Due Period</label>
+            <div class="due-period-btns">
+              <button class="due-period-btn active" onclick="selectDueFormPeriod(5, this)">5 days</button>
+              <button class="due-period-btn" onclick="selectDueFormPeriod(10, this)">10 days</button>
+              <button class="due-period-btn" onclick="selectDueFormPeriod(20, this)">20 days</button>
+              <button class="due-period-btn" onclick="selectDueFormPeriod(30, this)">30 days</button>
+              <button class="due-period-btn" onclick="selectDueFormPeriod(60, this)">60 days</button>
+            </div>
+            <input type="hidden" id="dueFormPeriod" value="5">
+          </div>
+
+          <!-- Amount -->
+          <div>
+            <label class="form-group" style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;display:block">Amount (৳) <span class="required-star">*</span></label>
+            <div class="due-amount-wrap">
+              <span>৳</span>
+              <input type="number" id="dueFormAmount" placeholder="0.00" min="0" class="due-amount-input">
+            </div>
+          </div>
+
+          <!-- Note -->
+          <div class="form-group">
+            <label>Note <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+            <input type="text" id="dueFormNote" placeholder="e.g. Grocery items, advance for next month...">
+          </div>
+        </div>
+        <div class="add-product-footer">
+          <button class="btn-secondary" onclick="closeAddDueModal()">Cancel</button>
+          <button class="btn-primary" onclick="saveDue()" style="background:var(--warning);box-shadow:0 4px 12px rgba(245,158,11,0.3)">
+            <i class="fas fa-save"></i> Save Due
+          </button>
         </div>
       </div>
     </div>
@@ -889,6 +1006,70 @@
           <button class="btn-secondary" onclick="closeAddProductModal()">Cancel</button>
           <button class="btn-primary" onclick="saveNewProduct()">
             <i class="fas fa-save"></i> Save Product
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================== ADD DUE MODAL ======================== -->
+    <div class="modal" id="addDueModal">
+      <div class="modal-content add-due-modal">
+        <div class="modal-header">
+          <h3><i class="fas fa-plus-circle"></i> Add New Due</h3>
+          <button class="modal-close" onclick="closeAddDueModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="add-due-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Customer Name <span class="required-star">*</span></label>
+              <input type="text" id="dueModalName" placeholder="e.g. Abdul Karim">
+            </div>
+            <div class="form-group">
+              <label>Phone Number <span class="required-star">*</span></label>
+              <input type="text" id="dueModalPhone" placeholder="e.g. 01712-345678">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Due Type <span class="required-star">*</span></label>
+            <div class="due-type-grid">
+              <button class="due-type-btn" data-dtype="Cash Loan" onclick="selectDueType(this)"><i class="fas fa-money-bill-wave"></i><span>Dhaar / Cash Loan</span></button>
+              <button class="due-type-btn" data-dtype="Product Purchase" onclick="selectDueType(this)"><i class="fas fa-shopping-basket"></i><span>Product Purchase</span></button>
+              <button class="due-type-btn" data-dtype="Service Due" onclick="selectDueType(this)"><i class="fas fa-wrench"></i><span>Service Due</span></button>
+              <button class="due-type-btn" data-dtype="Rent" onclick="selectDueType(this)"><i class="fas fa-home"></i><span>Rent / ভাড়া</span></button>
+              <button class="due-type-btn" data-dtype="Advance" onclick="selectDueType(this)"><i class="fas fa-hand-holding-usd"></i><span>Advance</span></button>
+              <button class="due-type-btn" data-dtype="Others" onclick="selectDueType(this)"><i class="fas fa-ellipsis-h"></i><span>Others</span></button>
+            </div>
+            <input type="hidden" id="dueModalType" value="">
+          </div>
+
+          <div class="form-group">
+            <label>Due Period <span class="required-star">*</span></label>
+            <div class="due-period-btns" style="margin-top:6px">
+              <button class="due-period-btn active" onclick="selectDueModalPeriod(5,this)">5 days</button>
+              <button class="due-period-btn" onclick="selectDueModalPeriod(10,this)">10 days</button>
+              <button class="due-period-btn" onclick="selectDueModalPeriod(20,this)">20 days</button>
+              <button class="due-period-btn" onclick="selectDueModalPeriod(30,this)">30 days</button>
+              <button class="due-period-btn" onclick="selectDueModalPeriod(60,this)">60 days</button>
+            </div>
+            <input type="hidden" id="dueModalDays" value="5">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Amount (৳) <span class="required-star">*</span></label>
+              <input type="number" id="dueModalAmount" placeholder="0.00" min="0" step="0.01">
+            </div>
+            <div class="form-group">
+              <label>Note (optional)</label>
+              <input type="text" id="dueModalNote" placeholder="Brief description...">
+            </div>
+          </div>
+        </div>
+        <div class="add-product-footer">
+          <button class="btn-secondary" onclick="closeAddDueModal()">Cancel</button>
+          <button class="btn-primary" onclick="saveDue()">
+            <i class="fas fa-save"></i> Add Due
           </button>
         </div>
       </div>
